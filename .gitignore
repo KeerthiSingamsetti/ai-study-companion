@@ -1,0 +1,39 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+backend/*.db
+backend/*.db-*
+backend/.pytest_cache/
+backend/.mypy_cache/
+
+# Environment
+.env
+backend/.env
+frontend/.env.local
+
+# Node
+frontend/node_modules/
+
+# Build
+frontend/dist/
+frontend/.next/
+frontend/build/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Generated data
+backend/vectorstore/
+backend/vectorstores/
+backend/temp_diagnostic_index/
+backend/eval/.cache/
+backend/tests/checkpoints-*/

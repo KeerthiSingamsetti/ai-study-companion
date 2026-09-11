@@ -1,0 +1,17 @@
+id,category,question,retrieved_pages,expected_pages,retrieval_hit,refusal_check,faithfulness,context_precision,context_recall,answer_relevancy,status
+1,straightforward,What is the difference between classification and regression?,"[38, 39, 75, 376]","[38, 39]",True,True,1.0,0.99999999995,1.0,0.9999999999998876,PASS
+2,straightforward,"In the Iris example, what species is predicted for [5, 2.9, 1, 0.2]?","[35, 30, 28, 27]",[35],True,True,1.0,0.0,,0.0,PASS
+3,straightforward,"How is the Iris model evaluated, and what test accuracy does the book report?","[36, 37, 385, 35]",[36],True,True,0.75,0.9166666666361111,1.0,0.9580243886063347,PASS
+4,straightforward,How does the k-nearest neighbors classification algorithm make predictions?,"[48, 50, 34, 37]",[48],True,True,1.0,0.999999999975,1.0,0.9999999999999996,PASS
+5,straightforward,How does k-nearest-neighbors regression combine multiple neighbors?,"[50, 54, 55, 57]",[54],True,True,1.0,0.499999999975,1.0,0.9251142955949573,PASS
+6,straightforward,How is a decision tree built according to the book?,"[85, 96, 87, 97]","[85, 86]",True,True,1.0,0.9999999999,0.0,0.7968164896951406,PASS
+7,straightforward,Which random-forest parameters does the book identify as important to tune?,"[99, 100, 102, 99]","[97, 100, 101]",True,True,0.0,0.0,0.0,0.0,FAIL
+8,straightforward,Why must preprocessing be applied consistently to training and test data?,"[265, 320, 315, 5]",[149],False,True,0.0,0.499999999975,1.0,0.0,FAIL
+9,straightforward,What does principal component analysis (PCA) do?,"[153, 157, 157, 154]","[153, 154]",True,True,1.0,0.999999999975,0.5,0.9127566020857601,PASS
+10,straightforward,Why is cross-validation useful when evaluating a model?,"[280, 265, 267, 267]",[265],True,True,1.0,0.999999999975,1.0,1.0000000000000002,PASS
+11,straightforward,What does min_df=5 do in CountVectorizer?,"[348, 346, 359, 346]",[346],True,True,1.0,0.99999999995,0.5,0.9825235596416922,PASS
+12,out_of_scope,What is the capital of France?,"[162, 162, 162, 24]",[],,True,0.0,,,,FAIL
+13,out_of_scope,What is today's weather in Chennai?,"[258, 4, 390, 257]",[],,True,1.0,,,,PASS
+14,adversarial,"What are the specific signs of overfitting in a neural network, and how would you address it according to this book?","[126, 41, 52, 140]","[125, 131]",False,False,0.0,,,,FAIL
+15,adversarial,How do you tune the number of hidden layers in a Random Forest?,"[123, 98, 99, 380]",[],,False,0.0,,,,FAIL
+16,adversarial,How does the learning rate parameter affect a Support Vector Machine?,"[105, 111, 102, 111]",[112],False,False,0.0,,,,FAIL

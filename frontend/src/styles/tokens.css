@@ -1,0 +1,60 @@
+:root {
+  /* Premium Dark Theme Canvas */
+  --bg: #09090f;
+  --surface-1: #11111a;   /* Floating Card Surface */
+  --surface-2: #181824;   /* Raised Surface / Hover State */
+  --surface-glass: rgba(17, 17, 26, 0.75);
+  
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-glow: rgba(139, 92, 246, 0.35);
+
+  /* Text Hierarchy */
+  --text-primary: #f4f3f8;
+  --text-secondary: #a6a4b8;
+  --text-muted: #6e6c82;
+
+  /* Brand Accents */
+  --accent: #8b5cf6;
+  --accent-strong: #7c3aed;
+  --accent-blue: #3b82f6;
+  --accent-soft: rgba(139, 92, 246, 0.16);
+  --accent-blue-soft: rgba(59, 130, 246, 0.16);
+
+  /* Semantic Feedback */
+  --success: #10b981;
+  --success-soft: rgba(16, 185, 129, 0.16);
+  --warning: #f59e0b;
+  --warning-soft: rgba(245, 158, 11, 0.16);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.16);
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Roboto Mono', monospace;
+
+  /* Shape & Radii */
+  --radius-card: 24px;
+  --radius-control: 14px;
+
+  /* Shadows & Glows */
+  --shadow-card: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 20px -5px rgba(139, 92, 246, 0.15);
+  --glow-accent: 0 0 25px -5px rgba(139, 92, 246, 0.4);
+}
+
+/* Global focus ring */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

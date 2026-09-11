@@ -1,0 +1,101 @@
+# Ground truths and page citations verified against sample.pdf's extracted
+   # text layer on [date] - not LLM-generated. Page numbers are 0-indexed,
+   # matching RetrievedChunk.page.
+- id: 1
+  category: straightforward
+  question: "What is the difference between classification and regression?"
+  ground_truth: "Classification predicts a class label chosen from predefined possibilities (binary or multiclass); regression predicts a continuous, floating-point number."
+  expected_source_pages: [38, 39]
+
+- id: 2
+  category: straightforward
+  question: "In the Iris example, what species is predicted for [5, 2.9, 1, 0.2]?"
+  ground_truth: "The model predicts class 0: setosa."
+  expected_source_pages: [35]
+
+- id: 3
+  category: straightforward
+  question: "How is the Iris model evaluated, and what test accuracy does the book report?"
+  ground_truth: "Predictions on the held-out test set are compared with known labels via knn.score(X_test, y_test). The reported test set accuracy is 0.97 (97%)."
+  expected_source_pages: [36]
+
+- id: 4
+  category: straightforward
+  question: "How does the k-nearest neighbors classification algorithm make predictions?"
+  ground_truth: "It stores the training data and, for a new point, finds the nearest training point(s). In the simplest case (one neighbor), it predicts the known label of the closest training point."
+  expected_source_pages: [48]
+
+- id: 5
+  category: straightforward
+  question: "How does k-nearest-neighbors regression combine multiple neighbors?"
+  ground_truth: "It predicts the average (mean) of the target values of the relevant nearest neighbors."
+  expected_source_pages: [54]
+
+- id: 6
+  category: straightforward
+  question: "How is a decision tree built according to the book?"
+  ground_truth: "The algorithm searches over all possible tests and picks the one most informative about the target variable, then repeats this process recursively, forming a binary hierarchy of decisions with axis-parallel partitions."
+  expected_source_pages: [85, 86]
+
+- id: 7
+  category: straightforward
+  question: "Which random-forest parameters does the book identify as important to tune?"
+  ground_truth: "n_estimators (number of trees) is central - more trees generally make the ensemble more robust but cost more time/memory. The book also discusses max_features and n_jobs (for parallelism across CPU cores)."
+  expected_source_pages: [97, 100, 101]
+
+- id: 8
+  category: straightforward
+  question: "Why must preprocessing be applied consistently to training and test data?"
+  ground_truth: "The same transformation learned from the training data (via .fit()) must be applied to the test data via .transform(). Fitting transformations separately on train and test would make the representations inconsistent."
+  expected_source_pages: [149]
+
+- id: 9
+  category: straightforward
+  question: "What does principal component analysis (PCA) do?"
+  ground_truth: "PCA rotates the data to new components (principal components) that are uncorrelated and ordered by how much variance they explain; the data is mean-centered as part of this process. Commonly used for dimensionality reduction."
+  expected_source_pages: [153, 154]
+
+- id: 10
+  category: straightforward
+  question: "Why is cross-validation useful when evaluating a model?"
+  ground_truth: "It evaluates a model across multiple train/test splits, giving a more robust estimate of generalization performance than one arbitrary split, and makes more efficient use of limited data."
+  expected_source_pages: [265]
+
+- id: 11
+  category: straightforward
+  question: "What does min_df=5 do in CountVectorizer?"
+  ground_truth: "It retains only tokens that appear in at least 5 documents, removing rare/uninformative tokens. In the book's example this reduced the feature count to 27,271 - about a third of the original."
+  expected_source_pages: [346]
+
+- id: 12
+  category: out_of_scope
+  question: "What is the capital of France?"
+  ground_truth: "The provided context does not contain enough information to answer this question."
+  expected_source_pages: []
+
+- id: 13
+  category: out_of_scope
+  question: "What is today's weather in Chennai?"
+  ground_truth: "The provided context does not contain enough information to answer this question."
+  expected_source_pages: []
+
+- id: 14
+  category: adversarial
+  question: "What are the specific signs of overfitting in a neural network, and how would you address it according to this book?"
+  ground_truth: "A common sign is when the network is complex enough to fit the training data very well but generalization suffers. The book's fix: a common approach is to first create a network large enough to overfit (confirming the task is learnable), then EITHER shrink the network OR increase alpha to add regularization (an l2 penalty on the MLPClassifier's weights, similar to ridge regression) to improve generalization performance."
+  expected_source_pages: [125, 131]
+  scoring_note: "FAIL if the answer mentions max_depth, pre-pruning, or learning-rate as the fix - those are gradient-boosted-tree concepts from a different section and do not apply to MLPClassifier. This is the specific regression case for the cross-topic blending bug found during manual testing."
+
+- id: 15
+  category: adversarial
+  question: "How do you tune the number of hidden layers in a Random Forest?"
+  ground_truth: "Random forests do not have hidden layers - that is a neural network (MLPClassifier) concept. Random forests are tuned via n_estimators, max_features, and pre-pruning options like max_depth."
+  expected_source_pages: []
+  scoring_note: "PASS only if the answer explicitly corrects the false premise (states random forests don't have hidden layers) rather than answering as if the premise were valid."
+
+- id: 16
+  category: adversarial
+  question: "How does the learning rate parameter affect a Support Vector Machine?"
+  ground_truth: "SVMs do not use a learning rate parameter - that's a gradient-based/boosting concept. SVMs are tuned via C (regularization strength, limits the importance of each point) and gamma (controls the width/scale of the Gaussian/RBF kernel)."
+  expected_source_pages: [112]
+  scoring_note: "PASS only if the answer explicitly corrects the false premise and does not describe an SVM 'learning rate' as if it exists."
