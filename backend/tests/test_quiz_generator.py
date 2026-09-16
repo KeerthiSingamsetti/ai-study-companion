@@ -18,6 +18,25 @@ from app.rag.retriever import RetrievedChunk
 from app.services.chat_service import ChatService
 from app.tools.quiz_generator_tool import generate_quiz
 
+from types import SimpleNamespace
+from app.auth.dependencies import get_current_user
+
+import uuid
+from app.db.session import SessionLocal
+from app.db import crud
+
+def _create_test_user():
+    db = SessionLocal()
+    user_id = f"test-user-{uuid.uuid4().hex[:8]}"
+    crud.create_user(
+        db,
+        user_id=user_id,
+        email=f"{user_id}@example.com",
+        hashed_password="hash",
+        display_name="Test User",
+    )
+    db.close()
+    return user_id
 
 class ToolCapableFakeChatModel(FakeMessagesListChatModel):
     """Fake chat model that accepts tool binding for graph tests."""
@@ -100,6 +119,9 @@ def test_streaming_chat_emits_structured_quiz_tool_result() -> None:
     app = FastAPI()
     app.state.chat_service = ChatService(create_graph(model, tools=[generate_document_quiz]))
     app.include_router(chat_router)
+
+    test_user_id = _create_test_user()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=test_user_id)
 
     response = TestClient(app).post("/chat", json={"message": "Quiz me on ATP", "stream": True})
 

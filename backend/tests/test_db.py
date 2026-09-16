@@ -67,10 +67,24 @@ def db() -> Session:
         expire_on_commit=False,
     )
     session = TestingSessionLocal()
+    from app.config import DEFAULT_USER_ID
+    from app.db.models import User
+    if session.get(User, DEFAULT_USER_ID) is None:
+        default_user = User(
+            id=DEFAULT_USER_ID,
+            email="default_user@example.com",
+            hashed_password="default_hash",
+            display_name="Default User",
+            role="student",
+        )
+        session.add(default_user)
+        session.commit()
+
     try:
         yield session
     finally:
         session.close()
+
         # Drop everything so the engine can be garbage-collected cleanly.
         Base.metadata.drop_all(bind=engine)
 

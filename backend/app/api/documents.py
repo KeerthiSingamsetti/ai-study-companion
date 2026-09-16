@@ -5,7 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_document_service
+from app.api.dependencies import get_current_user, get_document_service
+from app.db import crud
+from app.db.models import User
 from app.db.session import get_db
 from app.rag.exceptions import PDFIngestError
 from app.schemas.document import DocumentResponse, DocumentUploadResponse
@@ -24,7 +26,6 @@ def _serialize(document) -> DocumentResponse:
         chunk_count=document.chunk_count,
         uploaded_at=document.uploaded_at,
     )
-
 
 
 @router.post(
@@ -52,11 +53,14 @@ def _serialize(document) -> DocumentResponse:
 )
 async def upload_documents(
     thread_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[DocumentService, Depends(get_document_service)],
     db: Annotated[Session, Depends(get_db)],
     files: list[UploadFile] = File(...),
 ) -> DocumentUploadResponse:
-    """Ingest one or more PDF uploads into independent persisted indexes."""
+    """Ingest one or more PDF uploads into independent persisted indexes for an owned project."""
+    if crud.get_thread(db, thread_id, user_id=current_user.id) is None:
+        raise HTTPException(status_code=404, detail="Thread not found.")
     if any(
         file.content_type not in {"application/pdf", "application/x-pdf"}
         and not (file.filename or "").lower().endswith(".pdf")
@@ -74,8 +78,15 @@ async def upload_documents(
 
 
 @router.get("/threads/{thread_id}/documents", response_model=list[DocumentResponse])
-def list_documents(thread_id: str, service: Annotated[DocumentService, Depends(get_document_service)], db: Annotated[Session, Depends(get_db)]) -> list[DocumentResponse]:
-    """List documents uploaded to an existing thread."""
+def list_documents(
+    thread_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[DocumentService, Depends(get_document_service)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[DocumentResponse]:
+    """List documents uploaded to an existing thread owned by current user."""
+    if crud.get_thread(db, thread_id, user_id=current_user.id) is None:
+        raise HTTPException(status_code=404, detail="Thread not found.")
     try:
         return [_serialize(document) for document in service.list_for_thread(db, thread_id)]
     except ThreadNotFoundForDocumentError as error:
@@ -83,8 +94,16 @@ def list_documents(thread_id: str, service: Annotated[DocumentService, Depends(g
 
 
 @router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_document(document_id: str, service: Annotated[DocumentService, Depends(get_document_service)], db: Annotated[Session, Depends(get_db)]) -> None:
-    """Delete one document and its persisted FAISS index."""
+def delete_document(
+    document_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[DocumentService, Depends(get_document_service)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    """Delete one document owned by current user and its persisted FAISS index."""
+    doc = crud.get_document(db, document_id)
+    if doc is None or crud.get_thread(db, doc.thread_id, user_id=current_user.id) is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
     try:
         service.delete(db, document_id)
     except DocumentNotFoundError as error:

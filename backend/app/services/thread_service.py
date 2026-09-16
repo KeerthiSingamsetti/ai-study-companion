@@ -21,17 +21,17 @@ class ThreadNotFoundError(LookupError):
 class ThreadService:
     """Create, validate, title, and rename database-backed chat threads."""
 
-    def resolve_thread(self, db: Session, thread_id: str | None) -> Thread:
-        """Return an existing thread or create a new default-titled thread."""
-        if thread_id is None:
-            return crud.create_thread(
-                db, thread_id=str(uuid4()), title=DEFAULT_THREAD_TITLE
-            )
+    def resolve_thread(self, db: Session, thread_id: str | None, user_id: str) -> Thread:
+     """Return an existing thread owned by user_id, or create a new one for them."""
+     if thread_id is None:
+        return crud.create_thread(
+            db, thread_id=str(uuid4()), title=DEFAULT_THREAD_TITLE, user_id=user_id
+        )
 
-        thread = crud.get_thread(db, thread_id)
-        if thread is None:
-            raise ThreadNotFoundError(f"Thread {thread_id!r} does not exist.")
-        return thread
+     thread = crud.get_thread(db, thread_id)
+     if thread is None or thread.user_id != user_id:
+         raise ThreadNotFoundError(f"Thread {thread_id!r} does not exist.")
+     return thread
 
     def rename_thread(self, db: Session, thread_id: str, title: str) -> Thread:
         """Persist a user-selected thread title."""

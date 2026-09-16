@@ -12,6 +12,25 @@ from app.agent.graph import create_graph
 from app.api.chat import router as chat_router
 from app.services.chat_service import ChatService
 
+from types import SimpleNamespace
+from app.auth.dependencies import get_current_user
+
+import uuid
+from app.db.session import SessionLocal
+from app.db import crud
+
+def _create_test_user():
+    db = SessionLocal()
+    user_id = f"test-user-{uuid.uuid4().hex[:8]}"
+    crud.create_user(
+        db,
+        user_id=user_id,
+        email=f"{user_id}@example.com",
+        hashed_password="hash",
+        display_name="Test User",
+    )
+    db.close()
+    return user_id
 
 class ToolFailureThenRetryGraph:
     """Emulate Groq rejecting one malformed native tool-call generation."""
@@ -87,6 +106,9 @@ def test_chat_endpoint_returns_service_response() -> None:
     )
     app.include_router(chat_router)
 
+    test_user_id = _create_test_user()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=test_user_id)
+
     response = TestClient(app).post("/chat", json={"message": "What is DNA?"})
 
     assert response.status_code == 200
@@ -120,6 +142,9 @@ def test_chat_endpoint_returns_deduplicated_sources_when_tool_used() -> None:
         create_graph(model, tools=[search_uploaded_documents])
     )
     app.include_router(chat_router)
+
+    test_user_id = _create_test_user()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=test_user_id)
 
     response = TestClient(app).post("/chat", json={"message": "What is ML?"})
 

@@ -11,6 +11,8 @@ from groq import APIConnectionError, APITimeoutError, BadRequestError
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_chat_service, get_thread_service
+from app.auth.dependencies import get_current_user
+from app.db.models import User
 from app.db.session import get_db
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat_service import ChatService, ChatServiceError
@@ -26,10 +28,11 @@ def send_chat_message(
     chat_service: Annotated[ChatService, Depends(get_chat_service)],
     thread_service: Annotated[ThreadService, Depends(get_thread_service)],
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> ChatResponse | StreamingResponse:
     """Return the graph-generated assistant response for one user message."""
     try:
-        thread = thread_service.resolve_thread(db, payload.thread_id)
+        thread = thread_service.resolve_thread(db, payload.thread_id, user_id=current_user.id)
     except ThreadNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found."
@@ -70,7 +73,6 @@ def send_chat_message(
                 detail="The AI provider rejected this request. Please try again.",
             ) from error
 
-
         logger.exception("Groq rejected an invalid model-generated tool call.")
         assistant_message = (
             "I couldn't complete that tool request. Please try asking again."
@@ -108,4 +110,3 @@ def send_chat_message(
             "X-Accel-Buffering": "no",
         },
     )
-

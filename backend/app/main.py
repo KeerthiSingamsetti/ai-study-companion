@@ -70,9 +70,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         close_checkpointer(checkpointer)
 
 
+from app.auth.router import router as auth_router
+from app.api.spaces import router as spaces_router
+
+
 def create_app() -> FastAPI:
-    """Create the StudyMate FastAPI application."""
-    app = FastAPI(title="StudyMate API", lifespan=lifespan)
+    """Create the AI Study Companion FastAPI application."""
+    app = FastAPI(title="AI Study Companion API", lifespan=lifespan)
+    app.include_router(auth_router)
+    app.include_router(spaces_router)
     app.include_router(chat_router)
     app.include_router(document_router)
     app.include_router(rag_router)
@@ -82,6 +88,7 @@ def create_app() -> FastAPI:
     app.include_router(progress_router)
     app.include_router(thread_router)
     return app
+
 
 
 app = create_app()

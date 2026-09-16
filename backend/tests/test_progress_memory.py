@@ -26,7 +26,7 @@ from app.schemas.chat import ChatRequest
 from app.tools import memory_tool
 from app.services.chat_service import ChatService
 from app.services.thread_service import ThreadService
-
+from types import SimpleNamespace
 
 class ToolCapableFakeChatModel(FakeMessagesListChatModel):
     """Fake model that preserves LangGraph's real ToolNode execution path."""
@@ -302,7 +302,6 @@ def test_flashcard_learning_tag_creates_weak_topic_fact() -> None:
         "marked 1 cards as still learning on decision trees"
     ]
 
-
 def test_tool_validation_failure_returns_a_graceful_chat_message() -> None:
     """A hallucinated tool call cannot surface as an unhandled API failure."""
     session_factory = _session_factory()
@@ -325,6 +324,7 @@ def test_tool_validation_failure_returns_a_graceful_chat_message() -> None:
             FailingChatService(),  # type: ignore[arg-type]
             ThreadService(),
             db,
+            SimpleNamespace(id="test-user-id"),
         )
 
     assert response.message == "I couldn't complete that tool request. Please try asking again."

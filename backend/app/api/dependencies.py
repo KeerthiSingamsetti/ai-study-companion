@@ -7,6 +7,7 @@ from typing import Any, cast
 from fastapi import Request
 from langchain_core.language_models.chat_models import BaseChatModel
 
+from app.auth.dependencies import get_current_admin_user, get_current_user
 from app.services.chat_service import ChatService
 from app.services.document_service import DocumentService
 from app.services.rag_query_service import RagQueryService
@@ -41,9 +42,24 @@ def get_quiz_llm(request: Request) -> BaseChatModel:
 def get_rag_query_service(request: Request) -> RagQueryService:
     """Return the process-scoped RAG debug service composed during application startup."""
     return cast(RagQueryService, request.app.state.rag_query_service)
+
+
 def get_thread_service(request: Request) -> ThreadService:
     """Return the process-scoped thread lifecycle service."""
     return cast(
         ThreadService,
         getattr(request.app.state, "thread_service", ThreadService()),
     )
+
+
+__all__ = [
+    "get_chat_service",
+    "get_current_admin_user",
+    "get_current_user",
+    "get_document_service",
+    "get_embeddings",
+    "get_llm",
+    "get_quiz_llm",
+    "get_rag_query_service",
+    "get_thread_service",
+]

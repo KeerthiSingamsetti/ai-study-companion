@@ -16,6 +16,25 @@ from app.db.session import init_db
 from app.services.chat_service import ChatService
 from app.services.thread_service import ThreadService
 
+from types import SimpleNamespace
+from app.auth.dependencies import get_current_user
+
+import uuid
+from app.db.session import SessionLocal
+from app.db import crud
+
+def _create_test_user():
+    db = SessionLocal()
+    user_id = f"test-user-{uuid.uuid4().hex[:8]}"
+    crud.create_user(
+        db,
+        user_id=user_id,
+        email=f"{user_id}@example.com",
+        hashed_password="hash",
+        display_name="Test User",
+    )
+    db.close()
+    return user_id
 
 def test_same_thread_id_restores_previous_messages() -> None:
     """A second request with one thread ID restores the first turn."""
@@ -116,6 +135,8 @@ def test_chat_endpoint_returns_generated_thread_id() -> None:
         create_graph(FakeListChatModel(responses=["Endpoint response"]))
     )
     app.include_router(chat_router)
+    test_user_id = _create_test_user()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=test_user_id)
 
     response = TestClient(app).post("/chat", json={"message": "Hello"})
 
@@ -135,25 +156,39 @@ def test_get_thread_messages_endpoint() -> None:
     chat_service = ChatService(graph)
     thread_service = ThreadService()
 
+    from app.auth.router import router as auth_router
+
     app = FastAPI()
     app.state.chat_service = chat_service
     app.state.thread_service = thread_service
+    app.include_router(auth_router)
     app.include_router(chat_router)
     app.include_router(thread_router)
 
     client = TestClient(app)
+    reg = client.post(
+        "/auth/register",
+        json={"email": "memuser@example.com", "password": "password123", "display_name": "Mem User"},
+    )
+
+    login = client.post(
+        "/auth/login",
+        json={"email": "memuser@example.com", "password": "password123"},
+    )
+
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
     # 1. Non-existent thread returns 404
-    non_existent = client.get("/threads/non-existent-id/messages")
+    non_existent = client.get("/threads/non-existent-id/messages", headers=headers)
     assert non_existent.status_code == 404
 
     # 2. Send first chat message -> creates a thread and returns thread_id
-    chat1 = client.post("/chat", json={"message": "Hello StudyMate"})
+    chat1 = client.post("/chat", json={"message": "Hello StudyMate"}, headers=headers)
     assert chat1.status_code == 200
     thread_id = chat1.json()["thread_id"]
 
     # 3. Retrieve messages for the created thread
-    res1 = client.get(f"/threads/{thread_id}/messages")
+    res1 = client.get(f"/threads/{thread_id}/messages", headers=headers)
     assert res1.status_code == 200
     assert res1.json() == [
         {"role": "user", "content": "Hello StudyMate", "sources": []},
@@ -161,11 +196,11 @@ def test_get_thread_messages_endpoint() -> None:
     ]
 
     # 4. Send second message in same thread
-    chat2 = client.post("/chat", json={"message": "What is Python?", "thread_id": thread_id})
+    chat2 = client.post("/chat", json={"message": "What is Python?", "thread_id": thread_id}, headers=headers)
     assert chat2.status_code == 200
 
     # 5. Verify full chronological history
-    res2 = client.get(f"/threads/{thread_id}/messages")
+    res2 = client.get(f"/threads/{thread_id}/messages", headers=headers)
     assert res2.status_code == 200
     assert res2.json() == [
         {"role": "user", "content": "Hello StudyMate", "sources": []},
@@ -175,3 +210,4 @@ def test_get_thread_messages_endpoint() -> None:
     ]
 
     close_checkpointer(checkpointer)
+
