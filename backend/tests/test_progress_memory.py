@@ -312,10 +312,10 @@ def test_tool_validation_failure_returns_a_graceful_chat_message() -> None:
     )
 
     class FailingChatService:
-        def chat(self, user_message: str, thread_id: str):
+        def chat(self, user_message: str, thread_id: str, user_id: str = None, ai_call_id: str = None):
             raise error
 
-        def chat_with_tool_results(self, user_message: str, thread_id: str):
+        def chat_with_tool_results(self, user_message: str, thread_id: str, user_id: str = None, ai_call_id: str = None):
             raise error
 
     with session_factory() as db:

@@ -66,7 +66,7 @@ flowchart TD
     end
 
     subgraph External ["Tools & Models & Storage"]
-        Groq[Groq LLM API - llama-3.3-70b-versatile]
+        Groq[Groq LLM API - openai/gpt-oss-120b]
         FAISS[FAISS Vector Store]
         BM25[BM25 Lexical Retriever]
         Reranker[Cross-Encoder Reranker]
@@ -601,7 +601,7 @@ React lib/api.js consumes event stream:
 ## 22. Configuration System
 
 - **`.env` / `app/config.py`**:
-  - `GROQ_API_KEY`: Main LLM API key (`llama-3.3-70b-versatile`).
+  - `GROQ_API_KEY`: Main LLM API key (`openai/gpt-oss-120b`).
   - `GROQ_QUIZ_API_KEY`: Dedicated key for quiz generation.
   - `DATABASE_URL`: SQLite connection string (`sqlite:///backend/chatbot.db`).
   - `DEFAULT_USER_ID`: `"default_user"`.
@@ -622,7 +622,7 @@ React lib/api.js consumes event stream:
    - *Pros*: Zero LLM API latency, zero token cost, 100% deterministic routing, immune to prompt injection.
    - *Cons*: Requires regular expression pattern maintenance.
 2. **Why Single Tool Binding per Node?**
-   - *Pros*: Eliminates tool selection confusion and malformed Hermes output in `llama-3.3-70b-versatile`.
+   - *Pros*: Limits tool selection confusion and malformed Hermes output in the configured Groq model.
    - *Cons*: Requires separate nodes for each tool.
 3. **Why Post-Tool Synthesis Node?**
    - *Pros*: Decouples tool execution logic from final answer formatting; applies dedicated system prompts for grounded QA, quizzes, and progress.
@@ -672,7 +672,7 @@ React lib/api.js consumes event stream:
 
 ### 3. Tool Binding Isolation
 - **Question**: Why does each agent node bind at most one tool instead of binding all tools simultaneously?
-- **Answer**: When open-weights models like `llama-3.3-70b-versatile` are presented with 5+ tools, they frequently generate invalid tool calls or Hermes XML strings (`<function=...`). Binding 1 tool eliminates model confusion.
+- **Answer**: When tool-calling models are presented with 5+ tools, they can generate invalid tool calls or Hermes XML strings (`<function=...`). Binding 1 tool limits that confusion.
 - **Code Location**: `app/agent/nodes/chatbot.py`
 - **Why Interviewer Asks It**: Demonstrates real-world experience handling LLM tool-calling failure modes.
 

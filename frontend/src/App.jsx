@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getDocuments, getThreads, removeThread, renameThread } from './api/client'
-import { getStudyProgress } from './lib/progressApi'
+import WorkspaceGate from './components/WorkspaceGate'
 import { WorkspaceProvider } from './context/WorkspaceContext'
 import SidebarContainer from './components/Sidebar/SidebarContainer'
 import WorkspaceRouter from './components/WorkspaceRouter'
 import TopBar from './components/Header/TopBar'
 
 
-function AppContent() {
+function AppContent({ space, project, onProject, onSpace, switchProject, logout }) {
   const [threads, setThreads] = useState([])
-  const [activeThreadId, setActiveThreadId] = useState(null)
+  const activeThreadId = project.id
+  const setActiveThreadId = useCallback((id) => {
+    if (!id) { switchProject(); return }
+    const selected = threads.find((thread) => thread.id === id)
+    if (selected) onProject(selected)
+  }, [threads, onProject, switchProject])
   const [documents, setDocuments] = useState([])
 
   /* Sidebar layout state */
@@ -42,12 +47,12 @@ function AppContent() {
   /* Initial data load */
   const loadThreads = useCallback(async () => {
     try {
-      const data = await getThreads()
+      const data = await getThreads(space.id)
       setThreads(data)
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error('Could not load projects:', err)
     }
-  }, [])
+  }, [space.id])
 
   const loadDocuments = useCallback(async (targetThreadId = activeThreadId) => {
     if (!targetThreadId || targetThreadId === 'undefined') {
@@ -62,21 +67,12 @@ function AppContent() {
     }
   }, [activeThreadId])
 
-  /* Load user progress */
-  const loadProgress = useCallback(async () => {
-    try {
-      const data = await getStudyProgress()
-      if (data) setProgressData(data)
-    } catch {
-      /* ignore */
-    }
-  }, [])
-
   useEffect(() => {
-    void loadThreads()
-    void loadDocuments(activeThreadId)
-    void loadProgress()
-  }, [loadThreads, loadDocuments, loadProgress, activeThreadId])
+    let alive = true
+    getThreads(space.id).then((data) => { if (alive) setThreads(data) }).catch(console.error)
+    getDocuments(activeThreadId).then((data) => { if (alive) setDocuments(data) }).catch(console.error)
+    return () => { alive = false }
+  }, [space.id, activeThreadId])
 
   /* Thread actions */
   function handleNewChat() {
@@ -92,7 +88,7 @@ function AppContent() {
   const handleThreadCreated = useCallback((newId) => {
     setActiveThreadId(newId)
     void loadThreads()
-  }, [loadThreads])
+  }, [loadThreads, setActiveThreadId])
 
   async function handleRenameThread(threadId, newTitle) {
     try {
@@ -123,7 +119,7 @@ function AppContent() {
       setActiveThreadId(null)
       setChatResetKey((prev) => prev + 1)
     }
-  }, [activeThreadId])
+  }, [activeThreadId, setActiveThreadId])
 
   return (
     <WorkspaceProvider value={{ activeThreadId, setActiveThreadId }}>
@@ -146,7 +142,7 @@ function AppContent() {
 
           {/* Main Content Area — Single Active Workspace */}
           <div className="relative flex flex-1 flex-col overflow-hidden bg-[#09090F]">
-            {/* Sticky Glass Top Header Bar */}
+            {/* Sticky Glass Top Header Bar — single breadcrumb: Space > Project > page */}
             <div className="flex items-center">
               {!isSidebarOpen && (
                 <button
@@ -160,7 +156,13 @@ function AppContent() {
                   </svg>
                 </button>
               )}
-              <TopBar />
+              <TopBar
+                space={space}
+                project={project}
+                onSelectSpace={onSpace}
+                onSelectProject={onProject}
+                onSignOut={logout}
+              />
             </div>
 
             {/* Router Rendering Single Workspace via Visibility Toggling */}
@@ -180,5 +182,5 @@ function AppContent() {
 }
 
 export default function App() {
-  return <AppContent />
+  return <WorkspaceGate>{(selection) => <AppContent key={selection.project.id} {...selection} />}</WorkspaceGate>
 }

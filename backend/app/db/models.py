@@ -213,6 +213,9 @@ class Event(Base):
     project_id: Mapped[str | None] = mapped_column(String, ForeignKey("threads.id", ondelete="CASCADE"), nullable=True)
     event_type: Mapped[str] = mapped_column(String, nullable=False)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    processing_status: Mapped[str] = mapped_column(String, nullable=False, default="processed")
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -229,6 +232,8 @@ class IngestionJob(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     document_id: Mapped[str] = mapped_column(String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String, ForeignKey("threads.id", ondelete="CASCADE"), nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="queued")  # queued | processing | ready | failed
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -298,6 +303,8 @@ class AICallLog(Base):
     __tablename__ = "ai_call_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    project_id: Mapped[str | None] = mapped_column(String, ForeignKey("threads.id", ondelete="SET NULL"), nullable=True)
     model: Mapped[str] = mapped_column(String, nullable=False)
     feature: Mapped[str] = mapped_column(String, nullable=False)
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -309,6 +316,28 @@ class AICallLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class RetrievalTrace(Base):
+    """Inspectable evidence used by one tutor retrieval operation."""
+
+    __tablename__ = "retrieval_traces"
+    __table_args__ = (
+        Index("ix_retrieval_traces_project_created", "project_id", "created_at"),
+        Index("ix_retrieval_traces_ai_call", "ai_call_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ai_call_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("ai_call_log.id", ondelete="SET NULL"), nullable=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String, ForeignKey("threads.id", ondelete="CASCADE"), nullable=False)
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    strategy: Mapped[str] = mapped_column(String, nullable=False, default="hybrid_rrf_bge")
+    threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    chunks_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    selected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    grounded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 # ---------------------------------------------------------------------------

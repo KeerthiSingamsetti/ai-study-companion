@@ -16,6 +16,8 @@ from app.db.models import (
     Document,
     Event,
     IngestionJob,
+    AICallLog,
+    RetrievalTrace,
     MemoryFactType,
     QuizAttempt,
     Space,
@@ -25,6 +27,16 @@ from app.db.models import (
     User,
     UserMemory,
 )
+
+# PRD §12 event taxonomy.  Keeping this at the persistence boundary prevents
+# drift into opaque/free-form event names while payloads remain extensible.
+EVENT_TYPES: frozenset[str] = frozenset({
+    "project_created", "material_uploaded", "material_processing_started",
+    "material_processing_completed", "material_processing_failed",
+    "tutor_interaction", "quiz_attempted", "question_answered",
+    "assessment_completed", "mastery_updated", "recommendations_generated",
+    "project_activity",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +359,8 @@ def log_event(
     payload_json: str = "{}",
 ) -> Event:
     """Insert an idempotent system event row."""
+    if event_type not in EVENT_TYPES:
+        raise ValueError(f"Unknown system event_type {event_type!r}.")
     existing = db.query(Event).filter(Event.event_key == event_key).first()
     if existing:
         return existing
@@ -363,6 +377,11 @@ def log_event(
     db.commit()
     db.refresh(event)
     return event
+
+
+def event_exists(db: Session, event_key: str) -> bool:
+    """Return whether an idempotency key has already been accepted."""
+    return db.query(Event.id).filter(Event.event_key == event_key).first() is not None
 
 
 def list_events_for_user(db: Session, user_id: str, limit: int = 50, offset: int = 0) -> list[Event]:
@@ -393,11 +412,13 @@ def list_events_for_project(db: Session, project_id: str, limit: int = 50, offse
 # Ingestion Jobs
 # ---------------------------------------------------------------------------
 
-def create_ingestion_job(db: Session, *, job_id: str, document_id: str) -> IngestionJob:
+def create_ingestion_job(db: Session, *, job_id: str, document_id: str, user_id: str, project_id: str) -> IngestionJob:
     """Create background ingestion job."""
     job = IngestionJob(
         id=job_id,
         document_id=document_id,
+        user_id=user_id,
+        project_id=project_id,
         status="queued",
         retry_count=0,
         created_at=datetime.now(timezone.utc),
@@ -407,6 +428,56 @@ def create_ingestion_job(db: Session, *, job_id: str, document_id: str) -> Inges
     db.commit()
     db.refresh(job)
     return job
+
+
+def get_ingestion_job(db: Session, job_id: str) -> Optional[IngestionJob]:
+    return db.get(IngestionJob, job_id)
+
+
+def list_ingestion_jobs_for_project(db: Session, project_id: str) -> list[IngestionJob]:
+    return db.query(IngestionJob).filter(IngestionJob.project_id == project_id).order_by(IngestionJob.created_at.desc()).all()
+
+
+# ---------------------------------------------------------------------------
+# Observability
+# ---------------------------------------------------------------------------
+
+def log_ai_call(db: Session, *, model: str, feature: str, latency_ms: int, input_tokens: int = 0,
+                output_tokens: int = 0, estimated_cost_usd: float = 0.0, success: bool = True,
+                error_msg: str | None = None, user_id: str | None = None, project_id: str | None = None) -> AICallLog:
+    record = AICallLog(model=model, feature=feature, latency_ms=latency_ms, input_tokens=input_tokens,
+                       output_tokens=output_tokens, estimated_cost_usd=estimated_cost_usd, success=success,
+                       error_msg=error_msg, user_id=user_id, project_id=project_id, created_at=datetime.now(timezone.utc))
+    db.add(record); db.commit(); db.refresh(record)
+    return record
+
+
+def finish_ai_call(db: Session, call_id: int, *, latency_ms: int, input_tokens: int, output_tokens: int,
+                   success: bool, error_msg: str | None = None) -> Optional[AICallLog]:
+    record = db.get(AICallLog, call_id)
+    if record is None:
+        return None
+    record.latency_ms = latency_ms
+    record.input_tokens = input_tokens
+    record.output_tokens = output_tokens
+    record.success = success
+    record.error_msg = error_msg
+    db.commit(); db.refresh(record)
+    return record
+
+
+def log_retrieval_trace(db: Session, *, user_id: str, project_id: str, query: str, threshold: float,
+                        chunks_json: str, selected_count: int, grounded: bool = False,
+                        ai_call_id: int | None = None, strategy: str = "hybrid_rrf_bge") -> RetrievalTrace:
+    trace = RetrievalTrace(ai_call_id=ai_call_id, user_id=user_id, project_id=project_id, query=query,
+                           threshold=threshold, chunks_json=chunks_json, selected_count=selected_count,
+                           grounded=grounded, strategy=strategy, created_at=datetime.now(timezone.utc))
+    db.add(trace); db.commit(); db.refresh(trace)
+    return trace
+
+
+def list_retrieval_traces(db: Session, project_id: str, limit: int = 50) -> list[RetrievalTrace]:
+    return db.query(RetrievalTrace).filter(RetrievalTrace.project_id == project_id).order_by(RetrievalTrace.created_at.desc()).limit(limit).all()
 
 
 def update_ingestion_job_status(

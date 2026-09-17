@@ -7,6 +7,9 @@ import re
 
 _CITATION_MARKER_PATTERN = re.compile(r"\[\[cite:(\d+)\]\]", re.IGNORECASE)
 _GROUNDED_REFUSAL_PHRASES: tuple[str, ...] = (
+    "i couldn't find enough evidence",
+    "i could not find enough evidence",
+    "insufficient evidence",
     "i couldn't find information about",
     "the provided context does not contain enough information",
     "no relevant uploaded-document context was found",

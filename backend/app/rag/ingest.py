@@ -6,6 +6,8 @@ import tempfile
 import os
 import logging
 import re
+import unicodedata
+import ftfy
 from typing import Tuple, Dict, Any, List, Optional
 
 from langchain_community.document_loaders import PyPDFLoader
@@ -18,6 +20,17 @@ from langsmith import traceable
 
 logger = logging.getLogger(__name__)
 
+_SOFT_HYPHEN = '\u00ad'
+
+
+def _normalise_pdf_text(text: str) -> str:
+    """Apply NFKC to expand PDF ligature codepoints (ﬁ→fi, ﬂ→fl, ﬀ→ff, ﬃ→ffi, ﬄ→ffl)
+    and remove soft-hyphens introduced by some PDF exporters.
+    Safe to call on any Unicode string; returns plain str.
+    """
+    text = ftfy.fix_text(text)
+    return unicodedata.normalize('NFKC', text).replace(_SOFT_HYPHEN, '')
+
 _FIGURE_REFERENCE_PATTERN = re.compile(
     # Captures the full label including optional chapter prefix, e.g. "7-1" or just "1"
     r"\bfig(?:ure)?\.?\s*((?:\d+\s*-\s*)?\d+)(?=[:.\s]|$)",
@@ -26,6 +39,70 @@ _FIGURE_REFERENCE_PATTERN = re.compile(
 _FIGURE_CAPTION_PATTERN = re.compile(
     r"(?im)^\s*fig(?:ure)?\.?\s*((?:\d+\s*-\s*)?\d+)(?=[:.\s]|$)",
 )
+
+
+def _is_table_line(line: str) -> bool:
+    """Return whether a PDF-extracted line looks like a table row.
+
+    PyPDF text extraction commonly preserves markdown-style pipes, tabs, or
+    wide runs of spaces between columns.  Keeping consecutive matching lines
+    together prevents a row or its headings being split from the values it
+    explains.
+    """
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return (
+        stripped.count("|") >= 2
+        or "\t" in stripped
+        or len(re.findall(r"\S(?:\s{2,})\S", stripped)) >= 2
+    )
+
+
+def split_document_structure_aware(
+    document: Document, splitter: RecursiveCharacterTextSplitter
+) -> List[Document]:
+    """Split prose normally while preserving each contiguous table block.
+
+    Tables are deliberately allowed to exceed ``chunk_size``: splitting a
+    table mid-row destroys the relationship between its labels and values,
+    which is worse for retrieval than a slightly larger context passage.
+    """
+    lines = document.page_content.splitlines(keepends=True)
+    if not lines:
+        return []
+
+    blocks: List[tuple[bool, str]] = []
+    current_is_table: Optional[bool] = None
+    current_lines: List[str] = []
+    for line in lines:
+        is_table = _is_table_line(line)
+        if current_lines and is_table != current_is_table:
+            blocks.append((bool(current_is_table), "".join(current_lines)))
+            current_lines = []
+        current_is_table = is_table
+        current_lines.append(line)
+    if current_lines:
+        blocks.append((bool(current_is_table), "".join(current_lines)))
+
+    chunks: List[Document] = []
+    for is_table, text in blocks:
+        if not text.strip():
+            continue
+        metadata = dict(document.metadata)
+        if is_table:
+            metadata["content_structure"] = "table"
+            chunks.append(Document(page_content=text.strip(), metadata=metadata))
+            continue
+        for fragment in splitter.split_text(text):
+            if fragment.strip():
+                metadata_for_fragment = dict(metadata)
+                metadata_for_fragment["content_structure"] = "prose"
+                chunks.append(Document(
+                    page_content=fragment,
+                    metadata=metadata_for_fragment,
+                ))
+    return chunks
 
 
 def annotate_figure_metadata(chunks: List[Document]) -> None:
@@ -102,6 +179,8 @@ def load_and_chunk_pdf(
     # Write bytes safely to a temporary file
     temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf")
     try:
+        # PDFs are binary; writing bytes avoids any Windows text-codepage
+        # conversion before PyPDFLoader extracts Unicode text.
         with os.fdopen(temp_fd, 'wb') as f:
             f.write(file_bytes)
             
@@ -110,6 +189,11 @@ def load_and_chunk_pdf(
             docs = loader.load()
         except Exception as e:
             raise PDFIngestError(f"Failed to parse PDF: {str(e)}") from e
+
+        # Normalise extracted text: expand PDF ligature codepoints (ﬁ→fi etc.)
+        # and remove soft-hyphens so they never reach RAG chunks or user responses.
+        for doc in docs:
+            doc.page_content = _normalise_pdf_text(doc.page_content)
             
         # This check only catches a zero-page PDF (a completely empty document skeleton).
         # Scanned/image-only PDFs (real pages, but no extractable text) will bypass this
@@ -127,7 +211,11 @@ def load_and_chunk_pdf(
             add_start_index=True,
         )
         
-        chunks = splitter.split_documents(docs)
+        chunks = [
+            chunk
+            for document in docs
+            for chunk in split_document_structure_aware(document, splitter)
+        ]
         
         # This check catches scanned/image-only PDFs where pages had no extractable text,
         # resulting in the splitter producing zero text chunks.

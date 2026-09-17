@@ -6,7 +6,7 @@ import io
 import pytest
 from reportlab.pdfgen import canvas
 
-from app.rag.ingest import load_and_chunk_pdf
+from app.rag.ingest import load_and_chunk_pdf, split_document_structure_aware
 from app.rag.exceptions import PDFIngestError
 
 # ---------------------------------------------------------------------------
@@ -53,6 +53,27 @@ def test_load_and_chunk_pdf_uses_provided_filename_in_metadata():
     chunks, _ = load_and_chunk_pdf(pdf_bytes, filename="lecture_notes.pdf")
     
     assert chunks[0].metadata["source"] == "lecture_notes.pdf"
+
+
+def test_structure_aware_chunking_keeps_a_table_atomic():
+    """A table is never divided across chunks even when it exceeds chunk_size."""
+    from langchain_core.documents import Document
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+    table = "Metric | Value | Notes\nAccuracy | 92% | validation result\nRecall | 88% | validation result"
+    document = Document(
+        page_content=("Introduction to the experiment.\n\n" + table + "\n\nConclusion."),
+        metadata={"source": "results.pdf", "page": 4},
+    )
+    chunks = split_document_structure_aware(
+        document,
+        RecursiveCharacterTextSplitter(chunk_size=30, chunk_overlap=0),
+    )
+
+    table_chunks = [chunk for chunk in chunks if chunk.metadata["content_structure"] == "table"]
+    assert len(table_chunks) == 1
+    assert table_chunks[0].page_content == table
+    assert table_chunks[0].metadata["page"] == 4
 
 
 def test_load_and_chunk_pdf_raises_on_empty_bytes():

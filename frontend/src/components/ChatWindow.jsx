@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { getThreadMessages } from '../api/client'
+import { getProjectAnalytics, getThreadMessages } from '../api/client'
 import { sendChatMessageStream } from '../lib/api'
 import { useWorkspace } from '../context/WorkspaceContext'
 import ToolStatusIndicator from './ToolStatusIndicator'
@@ -39,10 +39,20 @@ function parseBodyAndSources(rawContent = '') {
   return { body, parsedSources }
 }
 
+/**
+ * Pick the concept with the lowest mastery score for proactive session opening.
+ * Returns null when the project has no mastery evidence yet.
+ */
+function pickWeakestConcept(mastery = []) {
+  const scored = mastery.filter((row) => typeof row?.score === 'number')
+  if (scored.length === 0) return null
+  return scored.reduce((weakest, row) => (row.score < weakest.score ? row : weakest))
+}
+
 /* ── Typing indicator dots ──────────────────────────────── */
 function TypingDots() {
   return (
-    <span className="flex items-center gap-1" aria-label="StudyMate is responding">
+    <span className="flex items-center gap-1" aria-label="AI Study Companion is responding">
       {[0, 150, 300].map((delay) => (
         <span
           key={delay}
@@ -109,6 +119,7 @@ function ChatWindow({
   const [isSending, setIsSending] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [messages, setMessages] = useState([])
+  const [sessionOpener, setSessionOpener] = useState(null)
   const scrollAnchorRef = useRef(null)
   const textareaRef = useRef(null)
   const pendingToolStatusRef = useRef(null)
@@ -156,7 +167,37 @@ function ChatWindow({
     }
   }, [threadId, resetKey, activeWorkspace, onInvalidThread])
 
+  /* Proactive session opening: reference the weakest concept when reopening a project */
+  useEffect(() => {
+    if (activeWorkspace && activeWorkspace !== 'chat') return
+    if (!threadId || threadId === 'undefined') {
+      setSessionOpener(null)
+      return
+    }
 
+    let isCurrent = true
+    getProjectAnalytics(threadId)
+      .then((data) => {
+        if (!isCurrent) return
+        const weakest = pickWeakestConcept(data?.mastery)
+        setSessionOpener(
+          weakest
+            ? {
+                concept: weakest.concept,
+                score: Math.round(weakest.score),
+                attempts: weakest.attempts ?? 0,
+              }
+            : null,
+        )
+      })
+      .catch(() => {
+        if (isCurrent) setSessionOpener(null)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [threadId, activeWorkspace])
 
   /* Auto-scroll */
   useEffect(() => {
@@ -268,8 +309,8 @@ function ChatWindow({
           ) : messages.length === 0 ? (
             /* Empty state */
             <div className="my-auto py-16 animate-fade-in">
-              <span className="mb-4 inline-flex rounded-full bg-violet-500/10 px-3 py-1 text-xs font-medium text-violet-300 ring-1 ring-inset ring-violet-400/20">
-                StudyMate AI
+              <span className="mb-4 inline-flex rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-300 ring-1 ring-inset ring-amber-400/20">
+                AI Study Companion
               </span>
               <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
                 What would you like to learn today?
@@ -277,6 +318,16 @@ function ChatWindow({
               <p className="mt-4 max-w-xl text-base leading-7 text-slate-400">
                 Ask a question, upload a PDF, and keep your learning conversations organized in one place.
               </p>
+              {sessionOpener && (
+                <div className="mt-6 max-w-xl rounded-2xl border border-amber-500/25 bg-amber-500/[0.07] px-4 py-3 text-sm text-slate-200">
+                  <span className="font-semibold text-amber-300">Welcome back.</span>{' '}
+                  Your weakest concept in this project is{' '}
+                  <span className="font-semibold text-white">{sessionOpener.concept}</span>{' '}
+                  (mastery {sessionOpener.score}%
+                  {sessionOpener.attempts ? `, ${sessionOpener.attempts} attempt(s)` : ''}). Want to
+                  review it before moving on?
+                </div>
+              )}
               <div className="mt-8 flex flex-wrap gap-2">
                 {[
                   'Explain this concept simply',
@@ -376,11 +427,11 @@ function ChatWindow({
             <textarea
               ref={textareaRef}
               id="chat-input"
-              aria-label="Message StudyMate"
+              aria-label="Message AI Study Companion"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Message StudyMate…"
+              placeholder="Message AI Study Companion…"
               rows={1}
               disabled={isSending}
               className="block w-full resize-none bg-transparent px-2 py-1 text-sm text-white outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-60"

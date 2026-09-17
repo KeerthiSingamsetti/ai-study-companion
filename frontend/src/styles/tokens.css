@@ -1,25 +1,25 @@
 :root {
-  /* Premium Dark Theme Canvas */
-  --bg: #09090f;
-  --surface-1: #11111a;   /* Floating Card Surface */
-  --surface-2: #181824;   /* Raised Surface / Hover State */
-  --surface-glass: rgba(17, 17, 26, 0.75);
-  
+  /* Ink Navy Canvas — AI Study Companion */
+  --bg: #1B2430;
+  --surface-1: #212C3A;   /* Floating Card Surface */
+  --surface-2: #283545;   /* Raised Surface / Hover State */
+  --surface-glass: rgba(27, 36, 48, 0.75);
+
   /* Borders */
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.16);
-  --border-glow: rgba(139, 92, 246, 0.35);
+  --border-glow: rgba(242, 169, 59, 0.35);
 
   /* Text Hierarchy */
   --text-primary: #f4f3f8;
   --text-secondary: #a6a4b8;
   --text-muted: #6e6c82;
 
-  /* Brand Accents */
-  --accent: #8b5cf6;
-  --accent-strong: #7c3aed;
+  /* Brand Accents — Amber */
+  --accent: #F2A93B;
+  --accent-strong: #d98f22;
   --accent-blue: #3b82f6;
-  --accent-soft: rgba(139, 92, 246, 0.16);
+  --accent-soft: rgba(242, 169, 59, 0.16);
   --accent-blue-soft: rgba(59, 130, 246, 0.16);
 
   /* Semantic Feedback */
@@ -39,8 +39,8 @@
   --radius-control: 14px;
 
   /* Shadows & Glows */
-  --shadow-card: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 20px -5px rgba(139, 92, 246, 0.15);
-  --glow-accent: 0 0 25px -5px rgba(139, 92, 246, 0.4);
+  --shadow-card: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 20px -5px rgba(242, 169, 59, 0.15);
+  --glow-accent: 0 0 25px -5px rgba(242, 169, 59, 0.4);
 }
 
 /* Global focus ring */

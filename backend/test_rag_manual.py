@@ -2,7 +2,7 @@
 test_rag_manual.py
 -------------------
 Standalone manual test for the StudyMate RAG pipeline (Module 2) using Groq
-as the LLM and NVIDIA's nv-embedqa-e5-v5 for embeddings. Not part of the
+as the LLM and local BAAI/bge-small-en-v1.5 embeddings. Not part of the
 pytest suite - run this by hand to eyeball retrieval quality and inspect
 the full trace in LangSmith.
 
@@ -14,12 +14,11 @@ Usage:
 
 Requires (in your .env, at the project root or backend/):
     GROQ_API_KEY=...
-    NVIDIA_API_KEY=...              # from build.nvidia.com
     LANGSMITH_TRACING=true          # or LANGCHAIN_TRACING_V2=true (legacy name)
     LANGSMITH_API_KEY=...           # or LANGCHAIN_API_KEY
     LANGSMITH_PROJECT=studymate-dev # or LANGCHAIN_PROJECT
 
-IMPORTANT: nv-embedqa-e5-v5 produces 1024-dim vectors vs. MiniLM's 384-dim.
+IMPORTANT: BAAI/bge-small-en-v1.5 produces 384-dim vectors.
 Any existing index built with the old embeddings model is INCOMPATIBLE and
 must be rebuilt - delete --index-path's directory before your first run
 with this script, or you'll get a DocumentNotIndexedError from a dimension
@@ -40,7 +39,7 @@ load_dotenv()
 
 from langsmith import traceable
 from langchain_groq import ChatGroq
-from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # --- import paths: adjust only if your backend/app layout differs ---
 sys.path.insert(0, str(Path(__file__).resolve().parent / "backend"))
@@ -71,14 +70,8 @@ Answer clearly and concisely.
 """
 
 # Embeddings must be instantiated exactly once, per store.py's own docstring
-# warning - never construct this per-call. NVIDIAEmbeddings automatically
-# uses input_type="passage" for embed_documents() and input_type="query"
-# for embed_query() under the hood - no extra config needed here.
-_EMBEDDINGS = NVIDIAEmbeddings(
-    model="nvidia/nv-embedqa-e5-v5",
-    api_key=os.getenv("NVIDIA_API_KEY"),
-    truncate="END",
-)
+# warning - never construct this per-call.
+_EMBEDDINGS = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
 
 
 def build_context_block(chunks) -> str:

@@ -1,5 +1,7 @@
 """FastAPI endpoints for AI Study Companion projects / conversation threads."""
 
+import json
+from uuid import uuid4
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,7 +12,7 @@ from app.db import crud
 from app.db.models import User
 from app.db.session import get_db
 from app.schemas.study_log import StudyLogResponse
-from app.schemas.thread import ThreadChatMessage, ThreadRenameRequest, ThreadResponse
+from app.schemas.thread import ThreadChatMessage, ThreadCreateRequest, ThreadRenameRequest, ThreadResponse
 from app.services.chat_service import ChatService
 from app.services.thread_service import ThreadNotFoundError, ThreadService
 
@@ -18,7 +20,31 @@ router = APIRouter(prefix="/threads", tags=["threads"])
 
 
 def _thread_response(thread) -> ThreadResponse:
-    return ThreadResponse(id=thread.id, title=thread.title, created_at=thread.created_at, updated_at=thread.updated_at)
+    return ThreadResponse(id=thread.id, title=thread.title, space_id=thread.space_id, created_at=thread.created_at, updated_at=thread.updated_at)
+
+
+@router.post("", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
+def create_project(
+    payload: ThreadCreateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ThreadResponse:
+    """Create a project only within a Space owned by the authenticated user."""
+    if crud.get_space(db, payload.space_id, user_id=current_user.id) is None:
+        raise HTTPException(status_code=404, detail="Space not found.")
+    title = " ".join(payload.title.split())
+    if not title:
+        raise HTTPException(status_code=422, detail="Project title cannot be blank.")
+    thread = crud.create_thread(
+        db, thread_id=str(uuid4()), title=title,
+        user_id=current_user.id, space_id=payload.space_id,
+    )
+    crud.log_event(
+        db, event_key=f"project:{thread.id}:created", user_id=current_user.id,
+        project_id=thread.id, event_type="project_created",
+        payload_json=json.dumps({"title": title, "space_id": payload.space_id}),
+    )
+    return _thread_response(thread)
 
 
 @router.patch("/{thread_id}", response_model=ThreadResponse)
@@ -53,9 +79,12 @@ def list_threads(
     current_user: Annotated[User, Depends(get_current_user)],
     thread_service: Annotated[ThreadService, Depends(get_thread_service)],
     db: Annotated[Session, Depends(get_db)],
+    space_id: str | None = None,
 ) -> list[ThreadResponse]:
-    """List conversation threads owned by current user ordered by most recent update."""
-    threads = crud.list_threads(db, user_id=current_user.id)
+    """List owned projects, optionally restricted to an owned Space."""
+    if space_id is not None and crud.get_space(db, space_id, user_id=current_user.id) is None:
+        raise HTTPException(status_code=404, detail="Space not found.")
+    threads = crud.list_threads(db, user_id=current_user.id, space_id=space_id)
     return [_thread_response(thread) for thread in threads]
 
 

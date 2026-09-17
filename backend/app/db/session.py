@@ -66,6 +66,18 @@ def init_db() -> None:
                 connection.execute(text("ALTER TABLE threads ADD COLUMN user_id VARCHAR"))
             if "space_id" not in columns:
                 connection.execute(text("ALTER TABLE threads ADD COLUMN space_id VARCHAR"))
+            for table, column, definition in (
+                ("events", "processing_status", "VARCHAR DEFAULT 'processed'"),
+                ("events", "processed_at", "DATETIME"),
+                ("events", "error_msg", "TEXT"),
+                ("ingestion_jobs", "user_id", "VARCHAR"),
+                ("ingestion_jobs", "project_id", "VARCHAR"),
+                ("ai_call_log", "user_id", "VARCHAR"),
+                ("ai_call_log", "project_id", "VARCHAR"),
+            ):
+                table_columns = {row["name"] for row in connection.execute(text(f"PRAGMA table_info({table})")).mappings()}
+                if table_columns and column not in table_columns:
+                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
 
     # Seed default_user row for legacy fallback & migration seed data
     db = SessionLocal()

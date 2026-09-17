@@ -7,6 +7,9 @@ import FlashcardsWorkspace from './workspace/FlashcardsWorkspace'
 import ProgressWorkspace from './workspace/ProgressWorkspace'
 import PlannerWorkspace from './workspace/PlannerWorkspace'
 import WorkspaceErrorBoundary from './WorkspaceErrorBoundary'
+import HomeDashboard from './workspace/HomeDashboard'
+import ProjectDashboard from './workspace/ProjectDashboard'
+import GlobalAnalytics from './workspace/GlobalAnalytics'
 
 export default function WorkspaceRouter({
   documents = [],
@@ -42,6 +45,15 @@ export default function WorkspaceRouter({
 
   return (
     <div className="relative flex-1 h-full w-full overflow-hidden bg-[#09090F]">
+      <div className={activeWorkspace === 'home-dashboard' ? 'flex flex-col h-full w-full' : 'hidden'}>
+        <WorkspaceErrorBoundary activeTab="home-dashboard"><HomeDashboard /></WorkspaceErrorBoundary>
+      </div>
+      <div className={activeWorkspace === 'project-dashboard' ? 'flex flex-col h-full w-full' : 'hidden'}>
+        <WorkspaceErrorBoundary activeTab="project-dashboard"><ProjectDashboard threadId={activeThreadId} /></WorkspaceErrorBoundary>
+      </div>
+      <div className={activeWorkspace === 'global-analytics' ? 'flex flex-col h-full w-full' : 'hidden'}>
+        <WorkspaceErrorBoundary activeTab="global-analytics"><GlobalAnalytics /></WorkspaceErrorBoundary>
+      </div>
       {/* 1. Chat Workspace */}
       <div className={activeWorkspace === 'chat' ? 'flex flex-col h-full w-full' : 'hidden'}>
         <motion.div
@@ -104,6 +116,7 @@ export default function WorkspaceRouter({
               quizPrefill={quizPrefill}
               threadId={activeThreadId}
               onQuizUpdate={setQuizData}
+              onDocumentUploaded={loadDocuments}
             />
           </WorkspaceErrorBoundary>
         </motion.div>

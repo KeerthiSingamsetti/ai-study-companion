@@ -8,6 +8,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pathlib import Path
 
+from app.config import MIN_RELEVANCE_THRESHOLD
 from app.schemas.chat import DocumentCitation
 from app.schemas.rag import RagQueryRequest, RagQueryResponse, RetrievedChunkResponse
 from app.services.citations import (
@@ -90,6 +91,7 @@ class RagQueryService:
             use_hybrid_search=request.use_hybrid_search,
             k=request.k,
             rerank_top_k=request.rerank_top_k,
+            min_relevance_score=MIN_RELEVANCE_THRESHOLD,
         )
         if not chunks:
             raise NoRelevantChunksError("No relevant chunks were retrieved.")

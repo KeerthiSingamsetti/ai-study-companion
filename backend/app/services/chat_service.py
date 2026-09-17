@@ -165,11 +165,17 @@ class ChatService:
         self,
         user_message: str,
         thread_id: str,
+        user_id: str | None = None,
+        ai_call_id: int | None = None,
         *,
         reuse_pending_user_message: bool = False,
     ) -> tuple[str, list[DocumentCitation], list[Any], list[dict[str, Any]]]:
         """Invoke the graph and collect text, citations, tool payloads, and SSE events."""
         configurable: dict[str, Any] = {"thread_id": thread_id}
+        if user_id:
+            configurable["user_id"] = user_id
+        if ai_call_id is not None:
+            configurable["ai_call_id"] = ai_call_id
         result = self._graph.invoke(
             {
                 "messages": []
@@ -294,7 +300,7 @@ class ChatService:
         """Extract tool name and args from Groq's failed_generation field.
 
         Groq returns the raw model output in ``failed_generation`` when it
-        rejects a malformed tool call. llama-3.3-70b-versatile occasionally
+        rejects a malformed tool call. The configured Groq model can occasionally
         produces the legacy Hermes text format::
 
             <function=tool_name{"arg": "value"}</function>
@@ -326,11 +332,11 @@ class ChatService:
         return tool_name, args
 
     def _invoke_with_tool_failure_retry(
-        self, user_message: str, thread_id: str
+        self, user_message: str, thread_id: str, user_id: str | None = None, ai_call_id: int | None = None
     ) -> tuple[str, list[DocumentCitation], list[Any], list[dict]]:
         """Invoke the agent; on tool_use_failed, execute the tool manually.
 
-        When llama-3.3-70b-versatile generates a legacy text-based function
+        When the configured Groq model generates a legacy text-based function
         call (``<function=name{...}</function>``) Groq rejects the request
         before LangGraph can see it.  A naive graph-level retry will produce
         the same broken output again.  Instead we:
@@ -342,7 +348,7 @@ class ChatService:
            as a plain HumanMessage so the model can produce the final answer.
         """
         try:
-            return self._invoke(user_message, thread_id)
+            return self._invoke(user_message, thread_id, user_id=user_id, ai_call_id=ai_call_id)
         except BadRequestError as error:
             if not self._is_tool_use_failure(error):
                 raise
@@ -459,18 +465,18 @@ class ChatService:
         )
         return strip_citation_markers(str(response.content or "")), [], []
 
-    def chat(self, user_message: str, thread_id: str) -> tuple[str, list[DocumentCitation]]:
+    def chat(self, user_message: str, thread_id: str, *, user_id: str | None = None, ai_call_id: int | None = None) -> tuple[str, list[DocumentCitation]]:
         """Send one user message to the graph and return assistant reply and sources citations."""
         assistant_response, citations, _, _events = self._invoke_with_tool_failure_retry(
-            user_message, thread_id
+            user_message, thread_id, user_id=user_id, ai_call_id=ai_call_id
         )
         return assistant_response, citations
 
     def chat_with_tool_results(
-        self, user_message: str, thread_id: str
+        self, user_message: str, thread_id: str, *, user_id: str | None = None, ai_call_id: int | None = None
     ) -> tuple[str, list[DocumentCitation], list[Any], list[dict]]:
         """Invoke chat; return text, citations, structured artifacts, and SSE events."""
-        return self._invoke_with_tool_failure_retry(user_message, thread_id)
+        return self._invoke_with_tool_failure_retry(user_message, thread_id, user_id=user_id, ai_call_id=ai_call_id)
 
     def get_thread_history(self, thread_id: str) -> list[ThreadChatMessage]:
         """Retrieve and format past conversation messages from the LangGraph checkpoint state."""

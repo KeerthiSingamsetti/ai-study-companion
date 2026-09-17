@@ -4,7 +4,7 @@
 Extend, do not rewrite. StudyMate's RAG/agent core is proven and tested — reuse it. Full PRD is pasted below in [PRD] — treat it as ground truth over this prompt if they conflict.
 
 ## EXISTING STACK (do not replace)
-FastAPI + LangGraph (9-node agent, one tool/node) · React 19+Vite+Tailwind · Groq Llama-3.3-70B (temp=0) · NVIDIA NIM embed (nv-embedqa-e5-v5) · FAISS+BM25+RRF fusion+BGE reranker · SQLite+SQLAlchemy · SSE streaming · Pydantic-validated tools · 73 pytest cases · LangSmith tracing.
+FastAPI + LangGraph (9-node agent, one tool/node) · React 19+Vite+Tailwind · Groq openai/gpt-oss-120b (temp=0) · local BAAI/bge-small-en-v1.5 embeddings · FAISS+BM25+RRF fusion+BGE reranker · SQLite+SQLAlchemy · SSE streaming · Pydantic-validated tools · LangSmith tracing.
 Gaps in base: no auth/isolation, SQLite only, MCQ-only quiz, weak-topics list (no mastery %), no Space/Project hierarchy, no admin/analytics UI.
 
 ## BUILD ORDER — stop at end of a phase if time runs out, don't leave a phase half-done

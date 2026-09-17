@@ -1,4 +1,4 @@
-import { API_BASE_URL, ApiError, request } from '../api/client'
+import { API_BASE_URL, ApiError, request, authenticatedFetch } from '../api/client'
 
 export { API_BASE_URL, ApiError, request }
 
@@ -6,7 +6,8 @@ export { API_BASE_URL, ApiError, request }
  * Send a chat message over SSE stream, yielding tool_result and message events.
  */
 export async function sendChatMessageStream(message, threadId, { onToolResult, onMessage }) {
-  const response = await fetch(`${API_BASE_URL}/chat`, {
+  if (!threadId) throw new ApiError('Select a project before sending a message.', 400)
+  const response = await authenticatedFetch('/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

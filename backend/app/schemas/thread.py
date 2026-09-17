@@ -6,6 +6,13 @@ from pydantic import BaseModel, Field
 from app.schemas.chat import DocumentCitation
 
 
+class ThreadCreateRequest(BaseModel):
+    """Create a project inside an explicitly selected Space."""
+
+    title: str = Field(min_length=1, max_length=200)
+    space_id: str = Field(min_length=1)
+
+
 class ThreadRenameRequest(BaseModel):
     """User-selected replacement title for a conversation thread."""
 
@@ -17,6 +24,7 @@ class ThreadResponse(BaseModel):
 
     id: str
     title: str
+    space_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

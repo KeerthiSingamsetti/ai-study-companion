@@ -1,13 +1,26 @@
-import { MessageSquare, FileText, HelpCircle, Layers, TrendingUp, Calendar } from 'lucide-react'
+import { MessageSquare, FileText, HelpCircle, Layers, TrendingUp, Calendar, LayoutDashboard, ChartNoAxesCombined, Globe2 } from 'lucide-react'
 
 export const WORKSPACES = [
+  {
+    id: 'home-dashboard', label: 'Home', title: 'Home Dashboard', shortName: 'Home',
+    icon: LayoutDashboard,
+    description: 'Personal study overview',
+  },
+  {
+    id: 'project-dashboard', label: 'Project Analytics', title: 'Project Analytics', shortName: 'Project',
+    icon: ChartNoAxesCombined, description: 'Active project learning analytics',
+  },
+  {
+    id: 'global-analytics', label: 'Global Analytics', title: 'Global Analytics', shortName: 'Global',
+    icon: Globe2, description: 'Cross-project study trends',
+  },
   {
     id: 'chat',
     label: 'Chat',
     title: 'Chat Assistant',
     shortName: 'Chat',
     icon: MessageSquare,
-    description: 'AI Study Assistant',
+    description: 'AI Study Companion',
   },
   {
     id: 'documents',

@@ -3,12 +3,12 @@ eval/run_eval.py
 ----------------
 RAG Evaluation Harness for StudyMate (Module 2) using RAGAS.
 
-- Generator : Groq (llama-3.3-70b-versatile)
+- Generator : Groq (openai/gpt-oss-120b)
 - Judge     : Groq (openai/gpt-oss-120b via LangchainLLMWrapper)
-              NOTE: Upgraded from gemma2-9b-it/llama-3.1-8b-instant to a
+              NOTE: Supersedes the removed Groq Llama catalog models.
               stronger, different-family model. This both raises judge
               reliability AND reduces same-family self-evaluation bias
-              (gpt-oss vs Llama, not just "different Groq deployment").
+              (gpt-oss is the current available Groq substitute).
 - Embeddings: HuggingFace BAAI/bge-small-en-v1.5 (local, no API key needed)
               NOTE: Upgraded from all-MiniLM-L6-v2. Same 384-dim footprint
               (index format compatible) but consistently stronger retrieval

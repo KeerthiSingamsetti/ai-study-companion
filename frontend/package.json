@@ -30,5 +30,8 @@
     "globals": "^17.7.0",
     "tailwindcss": "^4.3.3",
     "vite": "^8.1.1"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "^1.2.9"
   }
 }

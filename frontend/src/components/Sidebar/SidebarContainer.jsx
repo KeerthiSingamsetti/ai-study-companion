@@ -40,7 +40,7 @@ export default function SidebarContainer({
               <Sparkles className="size-4" />
             </div>
             <div>
-              <p className="font-bold tracking-tight text-white text-sm">StudyMate AI</p>
+              <p className="font-bold tracking-tight text-white text-sm">AI Study Companion</p>
               <p className="text-[11px] text-[var(--text-muted)] font-medium">Workspace</p>
             </div>
           </div>
@@ -67,7 +67,7 @@ export default function SidebarContainer({
           className="mb-3.5 flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-500 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-violet-600/30 border border-white/15 transition-all hover:brightness-110 focus:outline-none"
         >
           <Plus className="size-4" />
-          <span>New Chat</span>
+          <span>Choose / Create Project</span>
         </motion.button>
 
         {/* Chat Glass Search Input */}

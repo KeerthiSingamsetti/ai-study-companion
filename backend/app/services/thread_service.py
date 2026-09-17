@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from uuid import uuid4
+import json
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -24,9 +25,13 @@ class ThreadService:
     def resolve_thread(self, db: Session, thread_id: str | None, user_id: str) -> Thread:
      """Return an existing thread owned by user_id, or create a new one for them."""
      if thread_id is None:
-        return crud.create_thread(
+        thread = crud.create_thread(
             db, thread_id=str(uuid4()), title=DEFAULT_THREAD_TITLE, user_id=user_id
         )
+        crud.log_event(db, event_key=f"project:{thread.id}:created", user_id=user_id,
+                       project_id=thread.id, event_type="project_created",
+                       payload_json=json.dumps({"title": thread.title}))
+        return thread
 
      thread = crud.get_thread(db, thread_id)
      if thread is None or thread.user_id != user_id:

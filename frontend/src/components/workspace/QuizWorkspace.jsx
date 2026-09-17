@@ -67,9 +67,9 @@ export default function QuizWorkspace({
   quizData,
   onQuizUpdate,
   documents = [],
-  isExpanded = false,
-  onToggleExpand,
   quizPrefill,
+  threadId,
+  onDocumentUploaded,
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [userAnswers, setUserAnswers] = useState({})
@@ -254,6 +254,8 @@ export default function QuizWorkspace({
           isGenerating={isGenerating}
           onSubmit={handleGenerateForm}
           quizPrefill={quizPrefill}
+          threadId={threadId}
+          onUploaded={onDocumentUploaded}
         />
       </div>
     )

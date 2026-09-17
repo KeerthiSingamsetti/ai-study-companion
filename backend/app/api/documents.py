@@ -1,6 +1,8 @@
 """FastAPI endpoints for thread-scoped PDF documents."""
 
 from typing import Annotated
+from uuid import uuid4
+import json
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
@@ -74,7 +76,53 @@ async def upload_documents(
         raise HTTPException(status_code=404, detail="Thread not found.") from error
     except PDFIngestError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    for document in documents:
+        job = crud.create_ingestion_job(
+            db, job_id=str(uuid4()), document_id=document.id,
+            user_id=current_user.id, project_id=thread_id,
+        )
+        # Current worker runs inline for request compatibility; the persisted
+        # state makes the same job contract ready for an external queue.
+        crud.update_ingestion_job_status(db, job.id, "ready")
+        crud.log_event(db, event_key=f"material:{document.id}:uploaded", user_id=current_user.id,
+                       project_id=thread_id, event_type="material_uploaded",
+                       payload_json=json.dumps({"document_id": document.id, "filename": document.filename}))
+        crud.log_event(db, event_key=f"material:{document.id}:processed", user_id=current_user.id,
+                       project_id=thread_id, event_type="material_processing_completed",
+                       payload_json=json.dumps({"document_id": document.id, "job_id": job.id}))
     return DocumentUploadResponse(documents=[_serialize(document) for document in documents])
+
+
+@router.get("/threads/{thread_id}/ingestion-jobs")
+def list_ingestion_jobs(
+    thread_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[dict]:
+    if crud.get_thread(db, thread_id, user_id=current_user.id) is None:
+        raise HTTPException(status_code=404, detail="Thread not found.")
+    return [{"id": job.id, "document_id": job.document_id, "status": job.status,
+             "retry_count": job.retry_count, "error_msg": job.error_msg,
+             "created_at": job.created_at, "updated_at": job.updated_at}
+            for job in crud.list_ingestion_jobs_for_project(db, thread_id)]
+
+
+@router.post("/ingestion-jobs/{job_id}/retry")
+def retry_ingestion_job(
+    job_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    job = crud.get_ingestion_job(db, job_id)
+    if job is None or job.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Ingestion job not found.")
+    if job.status != "failed":
+        raise HTTPException(status_code=409, detail="Only failed ingestion jobs can be retried.")
+    updated = crud.update_ingestion_job_status(db, job.id, "queued", retry_count=job.retry_count + 1, error_msg=None)
+    crud.log_event(db, event_key=f"ingestion:{job.id}:retry:{updated.retry_count}", user_id=current_user.id,
+                   project_id=job.project_id, event_type="material_processing_started",
+                   payload_json=json.dumps({"job_id": job.id, "retry_count": updated.retry_count}))
+    return {"id": updated.id, "status": updated.status, "retry_count": updated.retry_count}
 
 
 @router.get("/threads/{thread_id}/documents", response_model=list[DocumentResponse])

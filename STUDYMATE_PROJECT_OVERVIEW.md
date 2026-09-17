@@ -29,7 +29,7 @@
 - **Study Plan Workspace**: Builds structured day-by-day revision schedules with interactive task checklists and percentage progress tracks.
 - **Study Progress & "Quiz Me on This" Flow**: Tracks weak topics across sessions and enables single-click contextual quiz creation pre-filled with weak topic metadata and source PDFs.
 
-The backend is built on **FastAPI + LangGraph**, LLM inference runs on **Groq Cloud** (`llama-3.3-70b-versatile`), embeddings use **NVIDIA NIM** (`nv-embedqa-e5-v5`), and the frontend is a **React 19 + Vite + Framer Motion** single-page application. State management uses `WorkspaceContext.jsx` as a single source of truth, and data is persisted in **SQLite** (WAL mode).
+The backend is built on **FastAPI + LangGraph**, LLM inference runs on **Groq Cloud** (`openai/gpt-oss-120b`), embeddings use local **BAAI/bge-small-en-v1.5**, and the frontend is a **React 19 + Vite + Framer Motion** single-page application. State management uses `WorkspaceContext.jsx` as a single source of truth, and data is persisted in **SQLite** (WAL mode).
 
 ![StudyMate Demo](studymate.gif)
 

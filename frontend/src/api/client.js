@@ -1,5 +1,43 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
+const TOKEN_KEY = 'studymate_token'
+
+export const getAuthToken = () => localStorage.getItem(TOKEN_KEY)
+export const setAuthToken = (token) => localStorage.setItem(TOKEN_KEY, token)
+export const clearAuthToken = () => localStorage.removeItem(TOKEN_KEY)
+
+// Shared by JSON requests, uploads, and the streaming chat client.
+export async function authenticatedFetch(path, options = {}) {
+  const token = getAuthToken()
+  const headers = new Headers(options.headers)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers })
+  if (response.status === 401 && token && getAuthToken() === token) {
+    clearAuthToken()
+    window.dispatchEvent(new Event('studymate:unauthorized'))
+  }
+  return response
+}
+
+export function loginUser(email, password) {
+  return request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+}
+
+export function registerUser(email, password, displayName) {
+  return request('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password, display_name: displayName, role: 'student' }),
+  })
+}
+
+export const getMe = () => request('/auth/me')
+export const getSpaces = () => request('/spaces')
+export const createSpace = (name) => request('/spaces', { method: 'POST', body: JSON.stringify({ name }) })
+export const createProject = (title, spaceId) => request('/threads', {
+  method: 'POST', body: JSON.stringify({ title, space_id: spaceId }),
+})
+
+
 export class ApiError extends Error {
   constructor(message, status) {
     super(message)
@@ -10,7 +48,7 @@ export class ApiError extends Error {
 
 export async function request(path, options = {}) {
   const isFormData = options.body instanceof FormData
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
@@ -40,8 +78,8 @@ export async function request(path, options = {}) {
   return payload
 }
 
-export function getThreads() {
-  return request('/threads')
+export function getThreads(spaceId) {
+  return request(spaceId ? `/threads?space_id=${encodeURIComponent(spaceId)}` : '/threads')
 }
 
 export function getThreadMessages(threadId) {
@@ -85,6 +123,18 @@ export function removeDocument(documentId) {
 
 export function getStudyLog(threadId) {
   return request(`/threads/${encodeURIComponent(threadId)}/study-log`)
+}
+
+export function getHomeAnalytics() {
+  return request('/analytics/home')
+}
+
+export function getProjectAnalytics(threadId) {
+  return request(`/analytics/projects/${encodeURIComponent(threadId)}`)
+}
+
+export function getGlobalAnalytics() {
+  return request('/analytics/global')
 }
 
 /**

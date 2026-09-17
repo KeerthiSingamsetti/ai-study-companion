@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import QuizEmptyUpload from './QuizEmptyUpload'
 import { motion } from 'framer-motion'
 
 /* ── SVG Icons ────────────────────────────────────────── */
@@ -44,7 +45,7 @@ function PlayIcon() {
 }
 
 /* ── QuizSetupForm Component ───────────────────────────── */
-export default function QuizSetupForm({ documents = [], isGenerating = false, onSubmit, quizPrefill }) {
+export default function QuizSetupForm({ documents = [], isGenerating = false, onSubmit, quizPrefill, threadId, onUploaded }) {
   const [topic, setTopic] = useState(quizPrefill?.topic ?? '')
   const [difficulty, setDifficulty] = useState(quizPrefill?.difficulty ?? 'medium')
   const [numQuestions, setNumQuestions] = useState(quizPrefill?.numQuestions ?? 10)
@@ -262,8 +263,9 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
             </label>
           </div>
           {!hasDocuments ? (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
-              ⚠️ Please upload a PDF in the <strong>Documents</strong> tab first before generating a quiz.
+            <div className="space-y-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+              ⚠️ This project has no documents yet. Upload a PDF right here — no need to leave the Quiz tab.
+              <QuizEmptyUpload threadId={threadId} onUploaded={onUploaded} />
             </div>
           ) : (
             <select

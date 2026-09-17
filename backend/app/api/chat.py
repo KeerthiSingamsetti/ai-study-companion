@@ -2,6 +2,9 @@
 
 import json
 import logging
+import os
+import time
+from uuid import uuid4
 from collections.abc import Iterator
 from typing import Annotated
 
@@ -13,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_chat_service, get_thread_service
 from app.auth.dependencies import get_current_user
 from app.db.models import User
+from app.db import crud
 from app.db.session import get_db
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat_service import ChatService, ChatServiceError
@@ -38,21 +42,28 @@ def send_chat_message(
             status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found."
         ) from error
 
+    call = crud.log_ai_call(
+        db, model=os.getenv("GROQ_MODEL", "unknown"), feature="tutor_chat", latency_ms=0,
+        user_id=current_user.id, project_id=thread.id,
+    )
+    started = time.perf_counter()
     try:
         if payload.stream:
             assistant_message, sources, tool_results, sse_events = chat_service.chat_with_tool_results(
-                payload.message, thread_id=thread.id
+                payload.message, thread_id=thread.id, user_id=current_user.id, ai_call_id=call.id
             )
         else:
-            assistant_message, sources = chat_service.chat(payload.message, thread_id=thread.id)
+            assistant_message, sources = chat_service.chat(payload.message, thread_id=thread.id, user_id=current_user.id, ai_call_id=call.id)
             tool_results = []
             sse_events = []
     except ChatServiceError as error:
+        crud.finish_ai_call(db, call.id, latency_ms=int((time.perf_counter() - started) * 1000), input_tokens=len(payload.message) // 4, output_tokens=0, success=False, error_msg=str(error))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The chat service did not produce a response.",
         ) from error
     except (APIConnectionError, APITimeoutError) as error:
+        crud.finish_ai_call(db, call.id, latency_ms=int((time.perf_counter() - started) * 1000), input_tokens=len(payload.message) // 4, output_tokens=0, success=False, error_msg=str(error))
         logger.exception("Groq chat request failed before the agent could run a tool.")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -67,6 +78,7 @@ def send_chat_message(
             body.get("error", {}).get("message", "") if isinstance(body, dict) else error
         ).lower()
         if error_code != "tool_use_failed" and "tool call validation failed" not in error_msg:
+            crud.finish_ai_call(db, call.id, latency_ms=int((time.perf_counter() - started) * 1000), input_tokens=len(payload.message) // 4, output_tokens=0, success=False, error_msg=str(error))
             logger.exception("Groq rejected the chat request.")
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -81,6 +93,9 @@ def send_chat_message(
         tool_results = []
         sse_events = []
 
+    crud.finish_ai_call(db, call.id, latency_ms=int((time.perf_counter() - started) * 1000), input_tokens=len(payload.message) // 4, output_tokens=len(assistant_message) // 4, success=True)
+    crud.log_event(db, event_key=f"tutor:{call.id}", user_id=current_user.id, project_id=thread.id,
+                   event_type="tutor_interaction", payload_json=json.dumps({"ai_call_id": call.id, "sources": len(sources)}))
     thread_service.set_automatic_title(db, thread.id, payload.message)
     thread_service.touch_thread(db, thread.id)
     if not payload.stream:

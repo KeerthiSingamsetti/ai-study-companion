@@ -37,6 +37,7 @@ from app.tools.quiz_generator_tool import create_quiz_tool
 from app.tools.rag_tool import create_rag_tool
 from app.tools.study_planner_tool import create_study_planner_tool
 from app.tools.memory_tool import create_study_progress_tool
+from app.tools.recommendation_tool import create_recommendation_tool
 
 
 @asynccontextmanager
@@ -58,9 +59,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         flashcard_tool = create_flashcard_tool(quiz_llm, embeddings)
         planner_tool = create_study_planner_tool(quiz_llm)
         progress_tool = create_study_progress_tool()
+        recommendation_tool = create_recommendation_tool()
         app.state.checkpointer = checkpointer
         app.state.thread_service = ThreadService()
-        tools = [rag_tool, quiz_tool, flashcard_tool, planner_tool, progress_tool]
+        tools = [rag_tool, quiz_tool, flashcard_tool, planner_tool, progress_tool, recommendation_tool]
         app.state.chat_service = ChatService(
             create_graph(llm=llm, checkpointer=checkpointer, tools=tools),
             tools=tools,
@@ -72,6 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 from app.auth.router import router as auth_router
 from app.api.spaces import router as spaces_router
+from app.api.analytics import router as analytics_router, admin_router
 
 
 def create_app() -> FastAPI:
@@ -87,6 +90,8 @@ def create_app() -> FastAPI:
     app.include_router(planner_router)
     app.include_router(progress_router)
     app.include_router(thread_router)
+    app.include_router(analytics_router)
+    app.include_router(admin_router)
     return app
 
 
