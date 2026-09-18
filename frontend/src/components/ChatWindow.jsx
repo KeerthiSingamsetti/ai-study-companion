@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
+import { MessageSquare, Send, Sparkles, Target, BookOpen } from 'lucide-react'
 import { getProjectAnalytics, getThreadMessages } from '../api/client'
 import { sendChatMessageStream } from '../lib/api'
 import { useWorkspace } from '../context/WorkspaceContext'
@@ -6,7 +8,6 @@ import ToolStatusIndicator from './ToolStatusIndicator'
 import MarkdownMessage from './MarkdownMessage'
 import CitationBadges from './CitationBadges'
 import WeakTopicsCard from './WeakTopicsCard'
-
 
 /**
  * Extracts Markdown body content separate from trailing Sources section.
@@ -56,7 +57,7 @@ function TypingDots() {
       {[0, 150, 300].map((delay) => (
         <span
           key={delay}
-          className="block size-1.5 rounded-full bg-slate-400"
+          className="block size-1.5 rounded-full bg-[var(--accent)]/70"
           style={{ animation: `bounce-dot 1s ${delay}ms infinite ease-in-out` }}
         />
       ))}
@@ -64,19 +65,26 @@ function TypingDots() {
   )
 }
 
+/* ── Assistant avatar ───────────────────────────────────── */
+function TutorAvatar() {
+  return (
+    <div className="grid size-8 shrink-0 place-items-center rounded-xl border border-[var(--accent)]/30 bg-gradient-to-br from-[var(--accent)]/30 to-transparent text-[var(--accent)]">
+      <Sparkles className="size-3.5" />
+    </div>
+  )
+}
+
 /* ── Generic assistant-response indicator ───────────────── */
 function ThinkingIndicator() {
   return (
-    <div className="flex items-center gap-3 text-sm text-slate-400 animate-fade-in">
-      <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-xs font-bold text-white shadow-lg shadow-violet-500/20">
-        S
-      </div>
-      <div className="flex items-center gap-2.5 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-xs text-slate-300 shadow-md">
+    <div className="flex animate-fade-in items-center gap-3 text-sm text-[var(--text-secondary)]">
+      <TutorAvatar />
+      <div className="flex items-center gap-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-xs text-[var(--text-secondary)]">
         <span className="relative flex size-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-400 opacity-75" />
-          <span className="relative inline-flex size-2 rounded-full bg-violet-500" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-75" />
+          <span className="relative inline-flex size-2 rounded-full bg-[var(--accent)]" />
         </span>
-        <span className="font-medium text-slate-300">Thinking…</span>
+        <span className="font-medium">Thinking…</span>
         <TypingDots />
       </div>
     </div>
@@ -86,12 +94,12 @@ function ThinkingIndicator() {
 /* ── Skeleton Message ───────────────────────────────────── */
 function HistorySkeleton() {
   return (
-    <div className="space-y-4 animate-fade-in py-4">
-      <div className="flex gap-3 justify-end">
+    <div className="animate-fade-in space-y-4 py-4">
+      <div className="flex justify-end gap-3">
         <div className="skeleton h-10 w-2/3 rounded-2xl" />
       </div>
-      <div className="flex gap-3 justify-start">
-        <div className="skeleton size-8 rounded-lg" />
+      <div className="flex justify-start gap-3">
+        <div className="skeleton size-8 rounded-xl" />
         <div className="skeleton h-16 w-3/4 rounded-2xl" />
       </div>
     </div>
@@ -257,7 +265,6 @@ function ChatWindow({
           }
         },
 
-
         onMessage: (response) => {
           const toolStatus = pendingToolStatusRef.current
           pendingToolStatusRef.current = null
@@ -300,47 +307,59 @@ function ChatWindow({
 
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-      {/* ── Scrollable Message List ─────────────── */}
+      {/* ── Scrollable message list ─────────────── */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-3xl flex-col px-5 py-10">
-
           {isLoadingHistory ? (
             <HistorySkeleton />
           ) : messages.length === 0 ? (
             /* Empty state */
-            <div className="my-auto py-16 animate-fade-in">
-              <span className="mb-4 inline-flex rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-300 ring-1 ring-inset ring-amber-400/20">
-                AI Study Companion
+            <div className="my-auto animate-fade-in py-12">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+                <Sparkles className="size-3.5" /> AI Tutor
               </span>
-              <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-[var(--text-primary)] sm:text-4xl">
                 What would you like to learn today?
               </h1>
-              <p className="mt-4 max-w-xl text-base leading-7 text-slate-400">
-                Ask a question, upload a PDF, and keep your learning conversations organized in one place.
+              <p className="mt-4 max-w-xl text-base leading-7 text-[var(--text-secondary)]">
+                Ask a question grounded in your own course material. Answers cite the exact document and page,
+                and tell you honestly when the evidence is not there.
               </p>
+
               {sessionOpener && (
-                <div className="mt-6 max-w-xl rounded-2xl border border-amber-500/25 bg-amber-500/[0.07] px-4 py-3 text-sm text-slate-200">
-                  <span className="font-semibold text-amber-300">Welcome back.</span>{' '}
-                  Your weakest concept in this project is{' '}
-                  <span className="font-semibold text-white">{sessionOpener.concept}</span>{' '}
-                  (mastery {sessionOpener.score}%
-                  {sessionOpener.attempts ? `, ${sessionOpener.attempts} attempt(s)` : ''}). Want to
-                  review it before moving on?
+                <div className="mt-6 max-w-xl rounded-2xl border border-[var(--accent)]/25 bg-gradient-to-br from-[var(--accent-soft)] to-transparent px-4 py-3.5 text-sm text-[var(--text-primary)]">
+                  <span className="font-semibold text-[var(--accent)]">Welcome back.</span> Your weakest concept in
+                  this project is <span className="font-semibold">{sessionOpener.concept}</span> (mastery{' '}
+                  {sessionOpener.score}%
+                  {sessionOpener.attempts ? `, ${sessionOpener.attempts} attempt(s)` : ''}). Want to review it before
+                  moving on?
+                  <button
+                    type="button"
+                    onClick={() => onQuizTopic?.(sessionOpener.concept)}
+                    className="mt-2.5 flex items-center gap-1.5 rounded-xl border border-[var(--accent)]/40 bg-[var(--accent)] px-3 py-1.5 text-xs font-bold text-[#1A1405] transition hover:bg-[var(--accent-strong)]"
+                  >
+                    <Target className="size-3.5" /> Practise this concept
+                  </button>
                 </div>
               )}
+
               <div className="mt-8 flex flex-wrap gap-2">
                 {[
-                  'Explain this concept simply',
-                  'Quiz me on this topic',
-                  'Give me study tips',
+                  { label: 'Explain this concept simply', icon: BookOpen },
+                  { label: 'Quiz me on this topic', icon: Target },
+                  { label: 'Give me study tips', icon: Sparkles },
                 ].map((suggestion) => (
                   <button
-                    key={suggestion}
+                    key={suggestion.label}
                     type="button"
-                    onClick={() => { setDraft(suggestion); textareaRef.current?.focus() }}
-                    className="rounded-full border border-slate-700 bg-slate-900/60 px-4 py-1.5 text-sm text-slate-300 transition hover:border-violet-400/50 hover:bg-violet-500/10 hover:text-white"
+                    onClick={() => {
+                      setDraft(suggestion.label)
+                      textareaRef.current?.focus()
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]"
                   >
-                    {suggestion}
+                    <suggestion.icon className="size-3.5 text-[var(--accent)]" />
+                    {suggestion.label}
                   </button>
                 ))}
               </div>
@@ -353,30 +372,26 @@ function ChatWindow({
                 return (
                   <article
                     key={`${message.role}-${index}`}
-                    className={`flex gap-3 animate-fade-in ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex animate-fade-in gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {message.role === 'assistant' && (
-                      <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-xs font-bold text-white shadow-lg shadow-violet-500/20">
-                        S
-                      </div>
-                    )}
+                    {message.role === 'assistant' && <TutorAvatar />}
                     <div
                       className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${
                         message.role === 'user'
-                          ? 'bg-gradient-to-br from-violet-500 to-violet-600 text-white shadow-lg shadow-violet-500/20'
-                          : 'border border-slate-800 bg-slate-900 text-slate-200'
+                          ? 'border border-[var(--accent)]/30 bg-[var(--accent-soft)] text-[var(--text-primary)]'
+                          : 'glass-card text-[var(--text-secondary)]'
                       }`}
                     >
                       {message.role === 'assistant' ? (
                         <>
-                          {/* 1. Header Text / Markdown Message */}
+                          {/* 1. Header text / markdown message */}
                           {(() => {
                             const { body, parsedSources } = parseBodyAndSources(message.content)
                             return (
                               <>
                                 <MarkdownMessage content={body} />
 
-                                {/* 2. Weak Topics Card Component */}
+                                {/* 2. Weak topics card */}
                                 {activeProgressData && (
                                   <WeakTopicsCard
                                     progressData={activeProgressData}
@@ -384,19 +399,16 @@ function ChatWindow({
                                   />
                                 )}
 
-
                                 {message.toolStatus && (
-                                  <div className="mt-3 border-t border-slate-800/80 pt-2">
+                                  <div className="mt-3 border-t border-[var(--border)] pt-2">
                                     <ToolStatusIndicator
                                       message={message.toolStatus.message}
                                       detail={message.toolStatus.detail}
                                     />
                                   </div>
                                 )}
-                                <CitationBadges
-                                  sources={message.sources ?? []}
-                                  parsedSources={parsedSources}
-                                />
+
+                                <CitationBadges sources={message.sources ?? []} parsedSources={parsedSources} />
                               </>
                             )
                           })()}
@@ -417,13 +429,15 @@ function ChatWindow({
         </div>
       </div>
 
-      {/* ── Fixed Input bar ──────────────────────────────── */}
-      <div className="shrink-0 border-t border-slate-800 bg-slate-950/80 px-5 py-4 backdrop-blur">
+      {/* ── Composer ──────────────────────────────── */}
+      <div className="shrink-0 border-t border-[var(--border)] bg-[var(--bg)]/80 px-5 py-4 backdrop-blur">
         <div className="mx-auto w-full max-w-3xl">
           {error && (
-            <p className="mb-2 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>
+            <p role="alert" className="mb-2 rounded-[var(--radius-control)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
+              {error}
+            </p>
           )}
-          <div className="rounded-2xl border border-slate-700 bg-slate-900 p-3 shadow-2xl shadow-black/20 transition-colors focus-within:border-violet-400/70">
+          <div className="glass-card rounded-2xl p-3 transition-colors focus-within:border-[var(--accent)]/50">
             <textarea
               ref={textareaRef}
               id="chat-input"
@@ -431,23 +445,29 @@ function ChatWindow({
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Message AI Study Companion…"
+              placeholder="Message your AI Tutor…"
               rows={1}
               disabled={isSending}
-              className="block w-full resize-none bg-transparent px-2 py-1 text-sm text-white outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className="block w-full resize-none bg-transparent px-2 py-1 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-60"
               style={{ minHeight: '40px', maxHeight: '180px' }}
             />
-            <div className="mt-2 flex items-center justify-between border-t border-slate-800 pt-3">
-              <span className="text-xs text-slate-500">Enter to send · Shift + Enter for new line</span>
-              <button
+            <div className="mt-2 flex items-center justify-between border-t border-[var(--border)] pt-3">
+              <span className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                <MessageSquare className="size-3.5" />
+                Enter to send · Shift + Enter for a new line
+              </span>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 id="send-message-btn"
                 type="button"
                 onClick={() => void sendMessage()}
                 disabled={!draft.trim() || isSending}
-                className="rounded-lg bg-gradient-to-r from-violet-500 to-purple-600 px-4 py-1.5 text-xs font-semibold text-white shadow transition hover:from-violet-400 hover:to-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] bg-[var(--accent)] px-4 py-1.5 text-xs font-bold text-[#1A1405] transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
               >
+                <Send className="size-3.5" />
                 {isSending ? 'Sending…' : 'Send'}
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>

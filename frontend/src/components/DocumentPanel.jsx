@@ -1,37 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getDocuments, removeDocument, uploadDocuments } from '../api/client'
-
-/* ── Icon helpers (inline SVG) ─────────────────────────── */
-function FileIcon() {
-  return (
-    <svg className="size-5 shrink-0 text-violet-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z" />
-    </svg>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16" />
-    </svg>
-  )
-}
-
-function UploadIcon() {
-  return (
-    <svg className="size-8 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-    </svg>
-  )
-}
+import { FileText, RefreshCw, Trash2, UploadCloud } from 'lucide-react'
+import { getDocuments, getIngestionJobs, removeDocument, retryIngestionJob, uploadDocuments } from '../api/client'
+import { EmptyState, JobStatePill, PageHeader } from './ui/primitives'
 
 /* ── Skeleton row ───────────────────────────────────────── */
 function SkeletonRow() {
   return (
-    <li className="flex items-center gap-3 rounded-xl border border-slate-800/60 bg-slate-900/60 p-3">
-      <div className="skeleton size-5 shrink-0 rounded" />
-      <div className="flex-1 space-y-1.5">
+    <li className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-3.5">
+      <div className="skeleton size-9 shrink-0 rounded-xl" />
+      <div className="flex-1 space-y-2">
         <div className="skeleton h-3 w-2/3 rounded" />
         <div className="skeleton h-2.5 w-1/3 rounded" />
       </div>
@@ -39,88 +16,148 @@ function SkeletonRow() {
   )
 }
 
-/* ── Main Component ─────────────────────────────────────── */
-export default function DocumentPanel({ threadId }) {
+/* ── Main component ─────────────────────────────────────── */
+export default function DocumentPanel({ threadId, onDocumentUploaded }) {
   const [documents, setDocuments] = useState([])
+  const [jobs, setJobs] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
   const [error, setError] = useState('')
   const [uploadError, setUploadError] = useState('')
+  const [retryingJob, setRetryingJob] = useState(null)
   const fileInputRef = useRef(null)
-  /* Load docs whenever threadId changes */
+
+  const loadJobs = useCallback(async () => {
+    if (!threadId || threadId === 'undefined') {
+      setJobs([])
+      return
+    }
+    try {
+      setJobs(await getIngestionJobs(threadId))
+    } catch {
+      setJobs([])
+    }
+  }, [threadId])
+
+  /* Load documents + jobs whenever threadId changes */
   useEffect(() => {
-    if (!threadId || threadId === 'undefined') { setDocuments([]); return }
+    if (!threadId || threadId === 'undefined') {
+      setDocuments([])
+      setJobs([])
+      return
+    }
 
     let cancelled = false
     setIsLoading(true)
     setError('')
     getDocuments(threadId)
       .then((docs) => {
-        if (!cancelled) {
-          setDocuments(docs)
-        }
+        if (!cancelled) setDocuments(docs)
       })
-      .catch((err) => { if (!cancelled) setError(err.message) })
-      .finally(() => { if (!cancelled) setIsLoading(false) })
-    return () => { cancelled = true }
-  }, [threadId])
+      .catch((err) => {
+        if (!cancelled) setError(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    void loadJobs()
+    return () => {
+      cancelled = true
+    }
+  }, [threadId, loadJobs])
+
+  /* Poll while any job is still moving through the pipeline */
+  useEffect(() => {
+    const isPending = jobs.some((job) => job.status === 'queued' || job.status === 'processing')
+    if (!isPending) return undefined
+    const timer = setInterval(() => void loadJobs(), 4000)
+    return () => clearInterval(timer)
+  }, [jobs, loadJobs])
 
   /* Upload logic */
-  const handleUpload = useCallback(async (files) => {
-    const pdfs = [...files].filter((f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'))
-    if (pdfs.length === 0) { setUploadError('Only PDF files are accepted.'); return }
-    setUploadError('')
-    setIsUploading(true)
-    try {
-      const result = await uploadDocuments(threadId, pdfs)
-      setDocuments((prev) => {
-        return [...prev, ...result.documents]
-      })
-    } catch (err) {
-      setUploadError(err.message)
-    } finally {
-      setIsUploading(false)
-    }
-  }, [threadId])
+  const handleUpload = useCallback(
+    async (files) => {
+      const pdfs = [...files].filter((f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'))
+      if (pdfs.length === 0) {
+        setUploadError('Only PDF files are accepted.')
+        return
+      }
+      setUploadError('')
+      setIsUploading(true)
+      try {
+        const result = await uploadDocuments(threadId, pdfs)
+        setDocuments((prev) => [...prev, ...result.documents])
+        await loadJobs()
+        if (onDocumentUploaded) onDocumentUploaded()
+      } catch (err) {
+        setUploadError(err.message)
+      } finally {
+        setIsUploading(false)
+      }
+    },
+    [threadId, loadJobs, onDocumentUploaded],
+  )
 
   /* Delete logic */
   async function handleDelete(doc) {
-    if (!window.confirm(`Remove "${doc.filename}" from this thread?`)) return
+    if (!window.confirm(`Remove "${doc.filename}" from this project?`)) return
     try {
       await removeDocument(doc.id)
-      setDocuments((prev) => {
-        return prev.filter((document) => document.id !== doc.id)
-      })
+      setDocuments((prev) => prev.filter((document) => document.id !== doc.id))
+      await loadJobs()
+      if (onDocumentUploaded) onDocumentUploaded()
     } catch (err) {
       setError(err.message)
     }
   }
 
+  async function handleRetry(jobId) {
+    setRetryingJob(jobId)
+    try {
+      await retryIngestionJob(jobId)
+      await loadJobs()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setRetryingJob(null)
+    }
+  }
+
   /* Drag-and-drop handlers */
-  function onDragOver(e) { e.preventDefault(); setIsDragOver(true) }
-  function onDragLeave() { setIsDragOver(false) }
+  function onDragOver(e) {
+    e.preventDefault()
+    setIsDragOver(true)
+  }
+  function onDragLeave() {
+    setIsDragOver(false)
+  }
   function onDrop(e) {
     e.preventDefault()
     setIsDragOver(false)
     void handleUpload(e.dataTransfer.files)
   }
 
-  /* ── No thread selected state ──────────────────────────── */
   if (!threadId) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center animate-fade-in">
-        <div className="grid size-12 place-items-center rounded-2xl bg-slate-800 text-slate-500">
-          <FileIcon />
-        </div>
-        <p className="text-sm font-medium text-slate-400">No thread selected</p>
-        <p className="text-xs leading-5 text-slate-600">Start a chat first, then upload PDFs to this thread.</p>
-      </div>
+      <EmptyState
+        icon={FileText}
+        title="No project selected"
+        description="Choose or create a project first — materials belong to a project so retrieval stays isolated."
+      />
     )
   }
 
+  const jobFor = (documentId) => jobs.filter((job) => job.document_id === documentId).at(-1)
+
   return (
-    <div className="flex flex-col gap-4 animate-fade-in">
+    <div className="animate-fade-in space-y-6">
+      <PageHeader
+        icon={FileText}
+        title="Learning Materials"
+        subtitle="Upload course PDFs. Each file is parsed, chunked and indexed in the background so the Tutor can cite it."
+      />
+
       {/* Upload area */}
       <div
         role="button"
@@ -131,17 +168,19 @@ export default function DocumentPanel({ threadId }) {
         onDrop={onDrop}
         onClick={() => fileInputRef.current?.click()}
         onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed py-7 text-center transition-all ${
+        className={`flex cursor-pointer flex-col items-center gap-2 rounded-[var(--radius-card)] border-2 border-dashed px-6 py-9 text-center transition-all ${
           isDragOver
-            ? 'border-violet-400 bg-violet-500/10 scale-[1.02]'
-            : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/40'
+            ? 'scale-[1.01] border-[var(--accent)] bg-[var(--accent-soft)]'
+            : 'border-[var(--border)] bg-[var(--surface-1)]/50 hover:border-[var(--accent)]/40 hover:bg-[var(--surface-1)]'
         }`}
       >
-        <UploadIcon />
-        <p className="text-sm font-medium text-slate-300">
-          {isUploading ? 'Uploading…' : 'Drop PDFs here or click to browse'}
+        <span className="grid size-12 place-items-center rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--accent)]">
+          <UploadCloud className="size-5" />
+        </span>
+        <p className="font-display text-sm font-semibold text-[var(--text-primary)]">
+          {isUploading ? 'Uploading & indexing…' : 'Drop PDFs here or click to browse'}
         </p>
-        <p className="text-xs text-slate-600">PDF only · multiple files supported</p>
+        <p className="text-xs text-[var(--text-muted)]">PDF only · multiple files supported · processed in the background</p>
         <input
           ref={fileInputRef}
           type="file"
@@ -152,60 +191,96 @@ export default function DocumentPanel({ threadId }) {
         />
       </div>
 
-      {/* Upload progress */}
       {isUploading && (
-        <div className="flex items-center gap-2 rounded-lg bg-violet-500/10 px-3 py-2">
-          <span className="size-3 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
-          <span className="text-xs text-violet-300">Processing & indexing…</span>
+        <div className="flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3.5 py-2.5">
+          <span className="size-3 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+          <span className="text-xs font-medium text-[var(--accent)]">Parsing & indexing your material…</span>
         </div>
       )}
 
-      {/* Errors */}
       {uploadError && (
-        <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{uploadError}</p>
+        <p role="alert" className="rounded-[var(--radius-control)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-3.5 py-2.5 text-xs text-[var(--danger)]">
+          {uploadError}
+        </p>
       )}
       {error && (
-        <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>
+        <p role="alert" className="rounded-[var(--radius-control)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-3.5 py-2.5 text-xs text-[var(--danger)]">
+          {error}
+        </p>
       )}
 
       {/* Document list */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Uploaded Documents
-        </p>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            Uploaded documents
+          </p>
+          <span className="font-mono-numbers text-xs text-[var(--text-muted)]">{documents.length}</span>
+        </div>
+
         <ul className="space-y-2">
           {isLoading ? (
-            <><SkeletonRow /><SkeletonRow /></>
+            <>
+              <SkeletonRow />
+              <SkeletonRow />
+            </>
           ) : documents.length === 0 ? (
-            <li className="rounded-xl border border-dashed border-slate-800 px-4 py-6 text-center text-xs text-slate-600">
-              No documents yet. Upload a PDF to get started.
-            </li>
+            <EmptyState
+              icon={FileText}
+              title="No documents yet"
+              description="Upload a text-based PDF to give the Tutor something to ground its answers in."
+            />
           ) : (
-            documents.map((doc) => (
-              <li
-                key={doc.id}
-                className="group flex items-start gap-3 rounded-xl border border-slate-800/60 bg-slate-900/60 p-3 transition hover:border-slate-700"
-              >
-                <FileIcon />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-200" title={doc.filename}>
-                    {doc.filename}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {doc.page_count ?? '?'} pages · {doc.chunk_count ?? '?'} chunks
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void handleDelete(doc)}
-                  className="shrink-0 rounded p-1 text-slate-600 opacity-0 transition hover:bg-rose-500/20 hover:text-rose-400 group-hover:opacity-100"
-                  aria-label={`Delete ${doc.filename}`}
-                  title="Delete document"
+            documents.map((doc) => {
+              const job = jobFor(doc.id)
+              return (
+                <li
+                  key={doc.id}
+                  className="group flex items-start gap-3.5 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-1)] p-3.5 transition hover:border-[var(--border-strong)]"
                 >
-                  <TrashIcon />
-                </button>
-              </li>
-            ))
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--accent)]">
+                    <FileText className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-medium text-[var(--text-primary)]" title={doc.filename}>
+                        {doc.filename}
+                      </p>
+                      {job && <JobStatePill state={job.status} />}
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                      {doc.page_count ?? '?'} pages · {doc.chunk_count ?? '?'} chunks
+                      {job?.retry_count ? ` · retried ${job.retry_count}×` : ''}
+                    </p>
+                    {job?.status === 'failed' && job.error_msg && (
+                      <p className="mt-1 text-[11px] text-[var(--danger)]">{job.error_msg}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {job?.status === 'failed' && (
+                      <button
+                        type="button"
+                        onClick={() => handleRetry(job.id)}
+                        disabled={retryingJob === job.id}
+                        className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-2 py-1 text-[10px] font-semibold text-[var(--text-secondary)] transition hover:border-[var(--accent)]/40 hover:text-[var(--text-primary)] disabled:opacity-50"
+                        title="Retry failed ingestion"
+                      >
+                        <RefreshCw className={`size-3 ${retryingJob === job.id ? 'animate-spin' : ''}`} /> Retry
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(doc)}
+                      className="rounded-lg p-1.5 text-[var(--text-muted)] opacity-0 transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)] group-hover:opacity-100 focus-visible:opacity-100"
+                      aria-label={`Delete ${doc.filename}`}
+                      title="Delete document"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                </li>
+              )
+            })
           )}
         </ul>
       </div>

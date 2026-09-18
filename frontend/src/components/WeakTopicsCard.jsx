@@ -1,4 +1,3 @@
-import React from 'react'
 import { Activity, ArrowRight } from 'lucide-react'
 
 /**
@@ -11,25 +10,26 @@ export default function WeakTopicsCard({ progressData, onOpenProgressTab }) {
   const weakCount = progressData.weak_topics?.length ?? 0
 
   return (
-    <div className="my-2.5 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-violet-500/20 bg-slate-950/60 px-4 py-3 text-xs text-slate-200 shadow-md backdrop-blur animate-fade-in">
-      <div className="flex items-center gap-2">
-        <div className="grid size-7 place-items-center rounded-lg bg-violet-500/10 text-violet-400 ring-1 ring-inset ring-violet-500/20">
+    <div className="my-2.5 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] px-4 py-3 text-xs text-[var(--text-primary)]">
+      <div className="flex items-center gap-2.5">
+        <span className="grid size-7 place-items-center rounded-lg border border-[var(--accent)]/25 bg-[var(--accent)]/10 text-[var(--accent)]">
           <Activity className="size-3.5" />
-        </div>
-        <div>
-          <span className="font-semibold text-white">Study Progress Updated</span>
-          <span className="text-slate-400 ml-1.5">— {weakCount} topic(s) currently needing review</span>
-        </div>
+        </span>
+        <span>
+          <span className="font-semibold">Study progress updated</span>
+          <span className="ml-1.5 text-[var(--text-secondary)]">
+            — {weakCount} topic{weakCount === 1 ? '' : 's'} currently needing review
+          </span>
+        </span>
       </div>
 
       <button
         type="button"
         onClick={onOpenProgressTab}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-3 py-1.5 font-semibold text-violet-300 ring-1 ring-inset ring-violet-500/20 transition-all hover:bg-violet-500/25 hover:text-white"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/15 px-3 py-1.5 font-semibold text-[var(--accent)] transition hover:bg-[var(--accent)]/25"
       >
-        <span>Open Progress Workspace</span>
+        <span>Open Progress</span>
         <ArrowRight className="size-3" />
-
       </button>
     </div>
   )

@@ -1,58 +1,67 @@
-import { MessageSquare, FileText, HelpCircle, Layers, TrendingUp, Calendar, LayoutDashboard, ChartNoAxesCombined, Globe2 } from 'lucide-react'
+import {
+  Calendar,
+  ChartNoAxesCombined,
+  FileText,
+  Globe2,
+  HelpCircle,
+  Layers,
+  LayoutDashboard,
+  MessageSquare,
+  ShieldCheck,
+  TrendingUp,
+} from 'lucide-react'
 
+/**
+ * Workspace registry.
+ *
+ * `group` drives sidebar sectioning; `adminOnly` hides the Admin console from
+ * student accounts (the API separately enforces the admin role).
+ */
 export const WORKSPACES = [
   {
-    id: 'home-dashboard', label: 'Home', title: 'Home Dashboard', shortName: 'Home',
+    id: 'home-dashboard',
+    label: 'Home',
+    title: 'Home Dashboard',
+    shortName: 'Home',
     icon: LayoutDashboard,
-    description: 'Personal study overview',
-  },
-  {
-    id: 'project-dashboard', label: 'Project Analytics', title: 'Project Analytics', shortName: 'Project',
-    icon: ChartNoAxesCombined, description: 'Active project learning analytics',
-  },
-  {
-    id: 'global-analytics', label: 'Global Analytics', title: 'Global Analytics', shortName: 'Global',
-    icon: Globe2, description: 'Cross-project study trends',
+    group: 'Learn',
+    description: 'Continue learning, progress and your next action',
   },
   {
     id: 'chat',
-    label: 'Chat',
-    title: 'Chat Assistant',
-    shortName: 'Chat',
+    label: 'AI Tutor',
+    title: 'AI Tutor',
+    shortName: 'Tutor',
     icon: MessageSquare,
-    description: 'AI Study Companion',
+    group: 'Learn',
+    description: 'Grounded answers with citations from your material',
   },
   {
     id: 'documents',
-    label: 'Documents',
-    title: 'Course Documents',
-    shortName: 'Document',
+    label: 'Materials',
+    title: 'Learning Materials',
+    shortName: 'Materials',
     icon: FileText,
-    description: 'Course PDFs & Reference Materials',
+    group: 'Learn',
+    description: 'Upload and process course PDFs',
   },
   {
     id: 'quiz',
-    label: 'Quiz',
-    title: 'Practice Quiz',
+    label: 'Practice Quiz',
+    title: 'Adaptive Quiz',
     shortName: 'Quiz',
     icon: HelpCircle,
-    description: 'Interactive Practice Quizzes',
+    group: 'Practise',
+    description: 'Adaptive practice with mastery feedback',
   },
   {
     id: 'flashcards',
     label: 'Flashcards',
     title: 'Flashcard Decks',
-    shortName: 'Flashcard',
+    shortName: 'Flashcards',
     icon: Layers,
-    description: 'Spaced Repetition Decks',
-  },
-  {
-    id: 'progress',
-    label: 'Progress',
-    title: 'Study Progress',
-    shortName: 'Analytics',
-    icon: TrendingUp,
-    description: 'Overall Performance & Weak Topics',
+    group: 'Practise',
+    description: 'Recall practice from your own material',
   },
   {
     id: 'planner',
@@ -60,8 +69,54 @@ export const WORKSPACES = [
     title: 'Study Planner',
     shortName: 'Planner',
     icon: Calendar,
-    description: 'Customized Study Schedules',
+    group: 'Practise',
+    description: 'Day-by-day revision schedules',
+  },
+  {
+    id: 'progress',
+    label: 'Progress',
+    title: 'Study Progress',
+    shortName: 'Progress',
+    icon: TrendingUp,
+    group: 'Grow',
+    description: 'Weak topics, attempts and focus areas',
+  },
+  {
+    id: 'project-dashboard',
+    label: 'Project Analytics',
+    title: 'Project Analytics',
+    shortName: 'Project',
+    icon: ChartNoAxesCombined,
+    group: 'Grow',
+    description: 'Mastery, growth and next step for this project',
+  },
+  {
+    id: 'global-analytics',
+    label: 'Global Analytics',
+    title: 'Global Analytics',
+    shortName: 'Global',
+    icon: Globe2,
+    group: 'Grow',
+    description: 'Cross-project trends and AI usage',
+  },
+  {
+    id: 'admin',
+    label: 'Admin Console',
+    title: 'Admin Operations',
+    shortName: 'Admin',
+    icon: ShieldCheck,
+    group: 'Operate',
+    adminOnly: true,
+    description: 'Users, jobs, AI usage and system health',
   },
 ]
 
 export const WORKSPACE_TOOLS = WORKSPACES
+
+/** Workspaces visible to the signed-in account. */
+export function visibleWorkspaces(role) {
+  return WORKSPACES.filter((workspace) => !workspace.adminOnly || role === 'admin')
+}
+
+/** Stable render order of sidebar groups. */
+export const WORKSPACE_GROUPS = ['Learn', 'Practise', 'Grow', 'Operate']

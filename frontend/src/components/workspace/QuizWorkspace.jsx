@@ -315,7 +315,7 @@ export default function QuizWorkspace({
         {/* Progress Bar Track */}
         <div className="h-1.5 w-full rounded-full bg-white/5 overflow-hidden">
           <motion.div
-            className="h-full bg-gradient-to-r from-violet-600 to-indigo-500"
+            className="h-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent-teal)]"
             initial={{ width: 0 }}
             animate={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
             transition={{ duration: 0.3 }}
@@ -468,7 +468,7 @@ export default function QuizWorkspace({
               whileTap={{ scale: 0.98 }}
               type="button"
               onClick={() => setCurrentIndex((prev) => prev + 1)}
-              className="flex-1 ml-4 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-600/30 transition-all focus-visible"
+              className="ml-4 flex-1 rounded-2xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-strong)] px-5 py-2.5 text-xs font-bold text-[#1A1405] shadow-[var(--glow-accent)] transition-all focus-visible"
             >
               Next Question →
             </motion.button>

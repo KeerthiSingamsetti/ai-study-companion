@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Plus, Search, X, Sparkles } from 'lucide-react'
+import { Plus, Search, Shield, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import WorkspaceSection from './WorkspaceSection'
 import ChatSection from './ChatSection'
+import { Logo } from '../ui/primitives'
 
 function CloseSidebarIcon() {
   return (
@@ -13,6 +14,7 @@ function CloseSidebarIcon() {
 }
 
 export default function SidebarContainer({
+  user,
   threads = [],
   isLoading = false,
   error = null,
@@ -31,25 +33,16 @@ export default function SidebarContainer({
     <div className="relative flex h-full shrink-0">
       <aside
         style={style}
-        className="hidden shrink-0 border-r border-white/5 bg-[#0b0b14]/90 p-4 md:flex md:flex-col h-full overflow-hidden backdrop-blur-2xl transition-colors font-sans"
+        className="hidden h-full shrink-0 flex-col overflow-hidden border-r border-[var(--border)] bg-[var(--surface-1)]/70 p-4 backdrop-blur-2xl md:flex"
       >
         {/* Header */}
         <div className="mb-5 flex shrink-0 items-center justify-between px-1">
-          <div className="flex items-center gap-3">
-            <div className="grid size-9 place-items-center rounded-2xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-violet-500 font-bold text-white shadow-lg shadow-violet-500/25 border border-white/10">
-              <Sparkles className="size-4" />
-            </div>
-            <div>
-              <p className="font-bold tracking-tight text-white text-sm">AI Study Companion</p>
-              <p className="text-[11px] text-[var(--text-muted)] font-medium">Workspace</p>
-            </div>
-          </div>
-
+          <Logo size={36} />
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl p-1.5 text-[var(--text-muted)] transition hover:bg-white/5 hover:text-white"
+              className="rounded-xl p-1.5 text-[var(--text-muted)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
               aria-label="Collapse sidebar"
               title="Collapse sidebar"
             >
@@ -58,61 +51,85 @@ export default function SidebarContainer({
           )}
         </div>
 
-        {/* New Chat Button with Animated Gradient */}
+        {/* Switch / create project */}
         <motion.button
-          whileHover={{ scale: 1.02, y: -1 }}
+          whileHover={{ y: -1 }}
           whileTap={{ scale: 0.98 }}
           type="button"
           onClick={onCreate}
-          className="mb-3.5 flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-500 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-violet-600/30 border border-white/15 transition-all hover:brightness-110 focus:outline-none"
+          className="mb-3.5 flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--accent)]/25 bg-[var(--accent-soft)] px-4 py-2.5 text-xs font-bold text-[var(--accent)] transition hover:border-[var(--accent)]/50 hover:bg-[var(--accent)]/20"
+          title="Switch Space or project"
         >
           <Plus className="size-4" />
-          <span>Choose / Create Project</span>
+          <span>Switch / new project</span>
         </motion.button>
 
-        {/* Chat Glass Search Input */}
-        <div className="mb-4 relative flex shrink-0 items-center">
-          <Search className="absolute left-3 size-3.5 text-[var(--text-muted)] pointer-events-none" />
+        {/* Conversation search */}
+        <div className="relative mb-4 flex shrink-0 items-center">
+          <Search className="pointer-events-none absolute left-3 size-3.5 text-[var(--text-muted)]" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search conversations…"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-2 pl-8 pr-7 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition focus:border-[var(--accent)]/50 focus:bg-white/[0.06] focus:ring-2 focus:ring-[var(--accent)]/20"
+            aria-label="Search conversations"
+            className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-2)]/60 py-2 pl-8 pr-7 text-xs text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/50 focus:bg-[var(--surface-2)]"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 rounded-md p-0.5 text-[var(--text-muted)] hover:bg-white/10 hover:text-white"
+              className="absolute right-2.5 rounded-md p-0.5 text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-primary)]"
               title="Clear search"
+              aria-label="Clear search"
             >
               <X className="size-3" />
             </button>
           )}
         </div>
 
-        {/* Workspaces Section */}
-        <WorkspaceSection />
+        {/* Workspaces */}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <WorkspaceSection />
+          <ChatSection
+            threads={threads}
+            isLoading={isLoading}
+            error={error}
+            searchQuery={searchQuery}
+            onSelect={onSelect}
+            onRename={onRename}
+            onDelete={onDelete}
+          />
+        </div>
 
-        {/* Chats Section */}
-        <ChatSection
-          threads={threads}
-          isLoading={isLoading}
-          error={error}
-          searchQuery={searchQuery}
-          onSelect={onSelect}
-          onRename={onRename}
-          onDelete={onDelete}
-        />
+        {/* Account footer */}
+        {user && (
+          <div className="mt-3 flex shrink-0 items-center gap-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-3 py-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent)]">
+              {(user.display_name || user.email || '?').slice(0, 1).toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-semibold text-[var(--text-primary)]">{user.display_name}</span>
+              <span className="block truncate text-[10px] text-[var(--text-muted)]">{user.email}</span>
+            </span>
+            {user.role === 'admin' && (
+              <span
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[var(--accent)]"
+                title="Platform administrator"
+              >
+                <Shield className="size-2.5" /> Admin
+              </span>
+            )}
+          </div>
+        )}
       </aside>
 
       {/* Resizable Splitter Handle */}
       {startResize && (
         <div
           onMouseDown={startResize}
-          className={`w-1 cursor-col-resize hover:bg-violet-500/50 transition-colors ${
-            isResizing ? 'bg-violet-500 shadow-glow' : 'bg-transparent'
+          className={`w-1 cursor-col-resize transition-colors hover:bg-[var(--accent)]/50 ${
+            isResizing ? 'bg-[var(--accent)]' : 'bg-transparent'
           }`}
           title="Drag to resize sidebar width"
         />

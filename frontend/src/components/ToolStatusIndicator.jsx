@@ -4,14 +4,13 @@
 export function ToolStatusIndicator({ message, detail }) {
   if (!message) return null
   return (
-
-    <div className="my-2.5 flex items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-3.5 py-2.5 text-xs text-emerald-300 shadow-md backdrop-blur animate-fade-in">
+    <div className="my-2.5 flex animate-fade-in items-center gap-2.5 rounded-xl border border-[var(--success)]/30 bg-[var(--success-soft)] px-3.5 py-2.5 text-xs text-[var(--success)]">
       <span className="relative flex size-2 shrink-0">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-75" />
+        <span className="relative inline-flex size-2 rounded-full bg-[var(--success)]" />
       </span>
-      <span className="font-semibold text-emerald-200">{message}</span>
-      {detail && <span className="text-slate-400">— {detail}</span>}
+      <span className="font-semibold">{message}</span>
+      {detail && <span className="text-[var(--text-secondary)]">— {detail}</span>}
     </div>
   )
 }

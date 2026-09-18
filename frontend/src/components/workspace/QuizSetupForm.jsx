@@ -123,10 +123,10 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
         className="flex flex-col gap-5 max-w-xl mx-auto font-sans"
       >
         {/* Banner Card */}
-        <div className="rounded-3xl border border-violet-500/30 bg-gradient-to-br from-[#131224] via-[#10101b] to-[#18152e] p-6 shadow-2xl space-y-5">
+        <div className="rounded-3xl border border-violet-500/30 bg-gradient-to-br from-[var(--surface-2)] via-[var(--surface-1)] to-[var(--surface-3)] p-6 shadow-2xl space-y-5">
           <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
             <div className="flex items-center gap-3">
-              <div className="grid size-12 place-items-center rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30">
+              <div className="grid size-12 place-items-center rounded-2xl bg-gradient-to-tr from-[var(--accent)] to-[var(--accent-strong)] text-[#1A1405] shadow-[var(--glow-accent)]">
                 <BookOpenIcon />
               </div>
               <div>
@@ -191,7 +191,7 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
               <select
                 value={effectiveDocId}
                 onChange={(e) => setSelectedDocId(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-[#141420] px-3 py-2 text-xs text-white outline-none transition focus:border-violet-500"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
               >
                 <option value="all">📚 All Thread PDFs ({documents.length} Combined)</option>
                 {documents.map((d) => (
@@ -210,7 +210,7 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
             type="button"
             disabled={!topic.trim() || !hasDocuments || isGenerating}
             onClick={handleSubmit}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3.5 text-xs font-bold text-white shadow-xl shadow-violet-600/30 border border-white/20 transition hover:brightness-110 disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent)] py-3.5 text-xs font-bold text-[#1A1405] shadow-[var(--glow-accent)] transition hover:bg-[var(--accent-strong)] disabled:opacity-40"
           >
             {isGenerating ? (
               <span className="flex items-center gap-2">
@@ -272,7 +272,7 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
               id="quiz-document-select"
               value={effectiveDocId}
               onChange={(e) => setSelectedDocId(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-[#141420] px-3.5 py-2.5 text-xs text-white outline-none transition focus:border-[var(--accent)]"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-xs text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
             >
               {documents.length > 1 && (
                 <option value="all">
@@ -299,7 +299,7 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder="e.g. Linear Regression, Chapter 2, Photosynthesis"
-            className="w-full rounded-xl border border-white/10 bg-[#141420] px-3.5 py-2.5 text-xs text-white placeholder:text-[var(--text-muted)] outline-none transition focus:border-[var(--accent)]"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition focus:border-[var(--accent)]"
           />
         </div>
 
@@ -318,7 +318,7 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
                   onClick={() => setDifficulty(opt.value)}
                   className={`rounded-xl border py-2 text-xs font-semibold transition ${
                     isSelected
-                      ? 'border-violet-500 bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md'
+                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[#1A1405] shadow-md'
                       : 'border-white/10 bg-white/5 text-[var(--text-muted)] hover:border-white/20 hover:text-white'
                   }`}
                 >
@@ -334,7 +334,7 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             Number of Questions
           </label>
-          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#141420] px-4 py-2">
+          <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2">
             <span className="text-xs text-[var(--text-muted)] font-mono-numbers">Questions (3 - 20)</span>
             <div className="flex items-center gap-3">
               <button
@@ -366,7 +366,7 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
         <button
           type="submit"
           disabled={!topic.trim() || !hasDocuments || isGenerating}
-          className="mt-2 w-full rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3 text-xs font-bold text-white shadow-lg shadow-violet-600/30 transition hover:brightness-110 disabled:opacity-40"
+          className="mt-2 w-full rounded-2xl bg-[var(--accent)] py-3 text-xs font-bold text-[#1A1405] shadow-[var(--glow-accent)] transition hover:bg-[var(--accent-strong)] disabled:opacity-40"
         >
           {isGenerating ? (
             <span className="flex items-center justify-center gap-2">

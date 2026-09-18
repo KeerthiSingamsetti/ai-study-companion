@@ -1,46 +1,56 @@
 :root {
-  /* Ink Navy Canvas — AI Study Companion */
-  --bg: #1B2430;
-  --surface-1: #212C3A;   /* Floating Card Surface */
-  --surface-2: #283545;   /* Raised Surface / Hover State */
-  --surface-glass: rgba(27, 36, 48, 0.75);
+  /* ── Ink & Gold — AI Study Companion design system ───────────── */
+
+  /* Deep ink canvas (layered, never flat black) */
+  --bg: #0B1220;
+  --bg-elevated: #0F1828;
+  --surface-1: #121C30;          /* floating card surface */
+  --surface-2: #182640;          /* raised surface / hover state */
+  --surface-3: #1E2F4D;          /* highest elevation */
+  --surface-glass: rgba(13, 21, 36, 0.78);
 
   /* Borders */
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --border-glow: rgba(242, 169, 59, 0.35);
+  --border: rgba(148, 163, 184, 0.14);
+  --border-strong: rgba(148, 163, 184, 0.30);
+  --border-glow: rgba(245, 181, 74, 0.42);
 
-  /* Text Hierarchy */
-  --text-primary: #f4f3f8;
-  --text-secondary: #a6a4b8;
-  --text-muted: #6e6c82;
+  /* Text hierarchy */
+  --text-primary: #EDF2FA;
+  --text-secondary: #9DAAC2;
+  --text-muted: #64748B;
 
-  /* Brand Accents — Amber */
-  --accent: #F2A93B;
-  --accent-strong: #d98f22;
-  --accent-blue: #3b82f6;
-  --accent-soft: rgba(242, 169, 59, 0.16);
-  --accent-blue-soft: rgba(59, 130, 246, 0.16);
+  /* Brand accents — warm gold */
+  --accent: #F5B54A;
+  --accent-strong: #E09B2D;
+  --accent-deep: #B7791F;
+  --accent-soft: rgba(245, 181, 74, 0.14);
+  --accent-blue: #60A5FA;
+  --accent-blue-soft: rgba(96, 165, 250, 0.14);
+  --accent-teal: #2DD4BF;
+  --accent-teal-soft: rgba(45, 212, 191, 0.14);
 
-  /* Semantic Feedback */
-  --success: #10b981;
-  --success-soft: rgba(16, 185, 129, 0.16);
-  --warning: #f59e0b;
-  --warning-soft: rgba(245, 158, 11, 0.16);
-  --danger: #ef4444;
-  --danger-soft: rgba(239, 68, 68, 0.16);
+  /* Semantic feedback */
+  --success: #34D399;
+  --success-soft: rgba(52, 211, 153, 0.14);
+  --warning: #FBBF24;
+  --warning-soft: rgba(251, 191, 36, 0.14);
+  --danger: #FB7185;
+  --danger-soft: rgba(251, 113, 133, 0.14);
 
   /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Roboto Mono', monospace;
 
-  /* Shape & Radii */
-  --radius-card: 24px;
-  --radius-control: 14px;
+  /* Shape */
+  --radius-card: 20px;
+  --radius-control: 12px;
+  --radius-pill: 999px;
 
-  /* Shadows & Glows */
-  --shadow-card: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 20px -5px rgba(242, 169, 59, 0.15);
-  --glow-accent: 0 0 25px -5px rgba(242, 169, 59, 0.4);
+  /* Shadows & glows */
+  --shadow-card: 0 24px 48px -24px rgba(2, 6, 23, 0.85), 0 2px 8px -4px rgba(2, 6, 23, 0.6);
+  --shadow-pop: 0 32px 64px -24px rgba(2, 6, 23, 0.9), 0 0 0 1px rgba(148, 163, 184, 0.08);
+  --glow-accent: 0 0 32px -8px rgba(245, 181, 74, 0.45);
 }
 
 /* Global focus ring */

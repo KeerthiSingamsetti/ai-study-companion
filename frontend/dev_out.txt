@@ -297,3 +297,43 @@ Error: connect ECONNREFUSED 127.0.0.1:8000
 [2m7:58:08 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Header/TopBar.jsx, /src/index.css[22m
 [2m7:58:12 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/QuizWorkspace.jsx[22m
 [2m8:01:39 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/QuizWorkspace.jsx[22m
+[2m9:51:31 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m9:51:31 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m9:52:40 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/tokens.css, /src/index.css[22m
+[2m9:53:05 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/tokens.css, /src/index.css[22m
+[2m9:56:37 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/workspace/ProgressWorkspace.jsx, /src/components/workspace/QuizWorkspace.jsx, /src/components/workspace/FlashcardsWorkspace.jsx, /src/components/ChatWindow.jsx, /src/components/workspace/PlannerWorkspace.jsx, /src/components/DocumentPanel.jsx, /src/components/workspace/ProjectDashboard.jsx, /src/components/workspace/HomeDashboard.jsx, /src/components/workspace/GlobalAnalytics.jsx, /src/components/WorkspaceGate.jsx, /src/index.css[22m
+[2m9:56:56 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/WorkspaceGate.jsx[22m
+[2m9:57:03 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/WorkspaceGate.jsx[22m
+[2m9:57:34 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/HomeDashboard.jsx[22m
+[2m9:58:05 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/HomeDashboard.jsx[22m
+[2m9:58:31 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/ProjectDashboard.jsx[22m
+[2m9:58:45 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/GlobalAnalytics.jsx[22m
+[2m9:59:08 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/Header/TopBar.jsx, /src/components/Sidebar/WorkspaceSection.jsx[22m
+[2m9:59:44 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/WorkspaceRouter.jsx, /src/index.css[22m
+[2m9:59:44 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/AnalyticsLayout.jsx[22m
+[2m10:00:03 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/WorkspaceRouter.jsx, /src/index.css[22m
+[2m10:00:19 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m10:00:35 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/Sidebar/WorkspaceSection.jsx[22m
+[2m10:01:01 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Sidebar/SidebarContainer.jsx, /src/index.css[22m
+[2m10:01:16 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/Sidebar/ChatSection.jsx[22m
+[2m10:01:16 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Header/TopBar.jsx, /src/index.css[22m
+[2m10:01:32 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Header/TopBar.jsx, /src/index.css[22m
+[2m10:01:47 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/Sidebar/ChatSection.jsx[22m
+[2m10:02:00 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ChatWindow.jsx[22m
+[2m10:02:19 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ChatWindow.jsx[22m
+[2m10:02:52 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m10:03:07 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/DocumentPanel.jsx[22m
+[2m10:03:07 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/CitationBadges.jsx[22m
+[2m10:03:07 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ToolStatusIndicator.jsx[22m
+[2m10:03:07 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WeakTopicsCard.jsx[22m
+[2m10:03:29 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/DocumentPanel.jsx[22m
+[2m10:03:45 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/CitationBadges.jsx[22m
+[2m10:04:04 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WeakTopicsCard.jsx[22m
+[2m10:04:18 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ToolStatusIndicator.jsx[22m
+[2m10:07:01 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/CitationBadges.jsx[22m
+[2m10:07:01 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/WeakTopicsCard.jsx[22m
+[2m10:07:53 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/QuizWorkspace.jsx[22m
+[2m10:07:53 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/FlashcardsWorkspace.jsx[22m
+[2m10:07:53 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/PlannerWorkspace.jsx[22m
+[2m10:08:04 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/QuizSetupForm.jsx[22m
+[2m10:08:19 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/workspace/FlashcardsSetupForm.jsx[22m

@@ -102,8 +102,8 @@ function CircularProgress({ value = 0, size = 48, strokeWidth = 4 }) {
         />
         <defs>
           <linearGradient id="gradientRing" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#8B5CF6" />
-            <stop offset="100%" stopColor="#3B82F6" />
+            <stop offset="0%" stopColor="#F5B54A" />
+            <stop offset="100%" stopColor="#2DD4BF" />
           </linearGradient>
         </defs>
       </svg>
@@ -185,7 +185,7 @@ export default function FlashcardsWorkspace({
         particleCount: 80,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ['#8B5CF6', '#3B82F6', '#10B981'],
+        colors: ['#F5B54A', '#2DD4BF', '#34D399'],
       })
     }
   }, [totalRated, hasCards, cards.length])
@@ -478,7 +478,7 @@ export default function FlashcardsWorkspace({
           className={`flex items-center justify-center gap-1.5 rounded-2xl border px-3 py-3 text-xs font-bold transition-all shadow-md focus-visible ${
             cardRatings[currentIndex] === 'still_learning'
               ? 'border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning)] ring-2 ring-[var(--warning)]/50'
-              : 'border-[var(--warning)]/30 bg-[#141420] text-[var(--warning)] hover:bg-[var(--warning-soft)]'
+              : 'border-[var(--warning)]/30 bg-[var(--surface-2)] text-[var(--warning)] hover:bg-[var(--warning-soft)]'
           }`}
         >
           <ClockIcon />
@@ -493,7 +493,7 @@ export default function FlashcardsWorkspace({
           className={`flex items-center justify-center gap-1.5 rounded-2xl border px-3 py-3 text-xs font-bold transition-all shadow-md focus-visible ${
             cardRatings[currentIndex] === 'need_review'
               ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] ring-2 ring-[var(--accent)]/50'
-              : 'border-[var(--accent)]/30 bg-[#141420] text-[var(--accent)] hover:bg-[var(--accent-soft)]'
+              : 'border-[var(--accent)]/30 bg-[var(--surface-2)] text-[var(--accent)] hover:bg-[var(--accent-soft)]'
           }`}
         >
           <RefreshCwIcon />
@@ -508,7 +508,7 @@ export default function FlashcardsWorkspace({
           className={`flex items-center justify-center gap-1.5 rounded-2xl border px-3 py-3 text-xs font-bold transition-all shadow-md focus-visible ${
             cardRatings[currentIndex] === 'got_it'
               ? 'border-[var(--success)] bg-[var(--success-soft)] text-[var(--success)] ring-2 ring-[var(--success)]/50'
-              : 'border-[var(--success)]/30 bg-[#141420] text-[var(--success)] hover:bg-[var(--success-soft)]'
+              : 'border-[var(--success)]/30 bg-[var(--surface-2)] text-[var(--success)] hover:bg-[var(--success-soft)]'
           }`}
         >
           <CheckIcon />

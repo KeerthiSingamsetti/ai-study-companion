@@ -1,46 +1,45 @@
 @import "tailwindcss";
 
 /* ── Brand Theme Remap (AI Study Companion) ──────────────────
-   The component tree was authored with violet/purple/indigo utility
-   classes. Remapping those scales to the amber accent here recolors the
-   whole UI to the locked navy/amber palette without touching every class
-   string. Navy canvas comes from tokens.css (--bg: #1B2430). */
+   Components authored with violet/purple/indigo utilities are remapped
+   onto the gold accent scale, so any legacy class string still renders
+   on-brand. New code should prefer the semantic tokens from tokens.css. */
 @theme {
-  --color-violet-50: #fef7ec;
-  --color-violet-100: #fdecd0;
-  --color-violet-200: #fbd9a1;
-  --color-violet-300: #f8c26b;
-  --color-violet-400: #F2A93B;
-  --color-violet-500: #e08f1f;
-  --color-violet-600: #c47414;
-  --color-violet-700: #a35a13;
-  --color-violet-800: #854816;
-  --color-violet-900: #6f3c15;
-  --color-violet-950: #3f1f08;
+  --color-violet-50: #fdf8ef;
+  --color-violet-100: #faeed3;
+  --color-violet-200: #f6dda6;
+  --color-violet-300: #F5C876;
+  --color-violet-400: #F5B54A;
+  --color-violet-500: #E09B2D;
+  --color-violet-600: #C2821F;
+  --color-violet-700: #9E691B;
+  --color-violet-800: #7E541C;
+  --color-violet-900: #68451D;
+  --color-violet-950: #3B260C;
 
-  --color-purple-50: #fef7ec;
-  --color-purple-100: #fdecd0;
-  --color-purple-200: #fbd9a1;
-  --color-purple-300: #f8c26b;
-  --color-purple-400: #F2A93B;
-  --color-purple-500: #e08f1f;
-  --color-purple-600: #c47414;
-  --color-purple-700: #a35a13;
-  --color-purple-800: #854816;
-  --color-purple-900: #6f3c15;
-  --color-purple-950: #3f1f08;
+  --color-purple-50: #fdf8ef;
+  --color-purple-100: #faeed3;
+  --color-purple-200: #f6dda6;
+  --color-purple-300: #F5C876;
+  --color-purple-400: #F5B54A;
+  --color-purple-500: #E09B2D;
+  --color-purple-600: #C2821F;
+  --color-purple-700: #9E691B;
+  --color-purple-800: #7E541C;
+  --color-purple-900: #68451D;
+  --color-purple-950: #3B260C;
 
-  --color-indigo-50: #fef7ec;
-  --color-indigo-100: #fdecd0;
-  --color-indigo-200: #fbd9a1;
-  --color-indigo-300: #f8c26b;
-  --color-indigo-400: #F2A93B;
-  --color-indigo-500: #e08f1f;
-  --color-indigo-600: #c47414;
-  --color-indigo-700: #a35a13;
-  --color-indigo-800: #854816;
-  --color-indigo-900: #6f3c15;
-  --color-indigo-950: #3f1f08;
+  --color-indigo-50: #fdf8ef;
+  --color-indigo-100: #faeed3;
+  --color-indigo-200: #f6dda6;
+  --color-indigo-300: #F5C876;
+  --color-indigo-400: #F5B54A;
+  --color-indigo-500: #E09B2D;
+  --color-indigo-600: #C2821F;
+  --color-indigo-700: #9E691B;
+  --color-indigo-800: #7E541C;
+  --color-indigo-900: #68451D;
+  --color-indigo-950: #3B260C;
 }
 
 :root {
@@ -72,37 +71,69 @@ select {
   font: inherit;
 }
 
+/* ── Type helpers ─────────────────────────────────────────── */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
 .font-mono-numbers {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Aurora canvas — layered ambient light, never flat ────── */
+.app-aurora {
+  position: relative;
+  background:
+    radial-gradient(1100px 520px at 12% -8%, rgba(245, 181, 74, 0.07), transparent 60%),
+    radial-gradient(900px 500px at 95% 0%, rgba(96, 165, 250, 0.06), transparent 55%),
+    radial-gradient(800px 600px at 50% 115%, rgba(45, 212, 191, 0.05), transparent 60%),
+    var(--bg);
+}
+
+.app-aurora::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(900px 500px at 50% 0%, black, transparent 75%);
+  -webkit-mask-image: radial-gradient(900px 500px at 50% 0%, black, transparent 75%);
+}
+
 /* ── Custom Scrollbars ───────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(148, 163, 184, 0.18);
   border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(242, 169, 59, 0.4);
+  background: rgba(245, 181, 74, 0.4);
+  background-clip: padding-box;
 }
 
 /* ── Glassmorphism Utility Classes ───────────────────────── */
 .glass-panel {
   background: var(--surface-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
   border: 1px solid var(--border);
 }
 
 .glass-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%), var(--surface-1);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.012) 55%), var(--surface-1);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border);
@@ -115,6 +146,20 @@ select {
 
 .glow-accent {
   box-shadow: var(--glow-accent);
+}
+
+/* Hairline top highlight used on hero cards */
+.edge-highlight {
+  position: relative;
+}
+.edge-highlight::after {
+  content: "";
+  position: absolute;
+  inset-inline: 12%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(245, 181, 74, 0.55), transparent);
+  pointer-events: none;
 }
 
 /* ── 3D Flashcard Flip Mechanics ─────────────────────────── */
@@ -150,7 +195,7 @@ select {
   display: flex;
   flex-direction: column;
   padding: 28px;
-  background-color: #212C3A;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 45%), var(--surface-1);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-card);
   min-height: 340px;
@@ -158,9 +203,8 @@ select {
 
 .face-back {
   transform: rotateY(180deg) translateZ(0);
-  background-color: #283545;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 45%), var(--surface-2);
 }
-
 
 /* ── Keyframe Animations ─────────────────────────────────── */
 @keyframes shimmer {
@@ -181,4 +225,18 @@ select {
 }
 .animate-fade-in {
   animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float-slow {
+  animation: floatSlow 5s ease-in-out infinite;
+}
+
+/* Typing indicator dots used by the Tutor composer */
+@keyframes bounce-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.55; }
+  30% { transform: translateY(-4px); opacity: 1; }
 }

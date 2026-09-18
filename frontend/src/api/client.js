@@ -23,10 +23,10 @@ export function loginUser(email, password) {
   return request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
 }
 
-export function registerUser(email, password, displayName) {
+export function registerUser(email, password, displayName, role = 'student') {
   return request('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password, display_name: displayName, role: 'student' }),
+    body: JSON.stringify({ email, password, display_name: displayName, role }),
   })
 }
 
@@ -108,6 +108,16 @@ export function getDocuments(threadId) {
   return request(`/threads/${encodeURIComponent(threadId)}/documents`)
 }
 
+/** Background ingestion job states for a project (queued → processing → ready/failed). */
+export function getIngestionJobs(threadId) {
+  return request(`/threads/${encodeURIComponent(threadId)}/ingestion-jobs`)
+}
+
+/** Retry a failed ingestion job. */
+export function retryIngestionJob(jobId) {
+  return request(`/ingestion-jobs/${encodeURIComponent(jobId)}/retry`, { method: 'POST' })
+}
+
 export function uploadDocuments(threadId, files) {
   const formData = new FormData()
   files.forEach((file) => formData.append('files', file))
@@ -135,6 +145,15 @@ export function getProjectAnalytics(threadId) {
 
 export function getGlobalAnalytics() {
   return request('/analytics/global')
+}
+
+/* ── Admin operations console (admin role required by the API) ──── */
+export function getAdminOperations() {
+  return request('/admin/operations')
+}
+
+export function getAdminProduct() {
+  return request('/admin/product')
 }
 
 /**

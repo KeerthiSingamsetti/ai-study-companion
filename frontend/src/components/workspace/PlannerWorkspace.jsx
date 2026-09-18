@@ -67,7 +67,7 @@ export default function PlannerWorkspace({
     return (
       <div className="space-y-5 max-w-xl mx-auto p-4 animate-fade-in text-[var(--text-primary)] font-sans">
         {/* Header Card */}
-        <div className="flex items-center gap-3 rounded.3xl border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-lg">
+        <div className="flex items-center gap-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-lg">
           <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--accent-soft)] border border-[var(--accent)]/30 text-[var(--accent)]">
             <CalendarIcon />
           </div>
