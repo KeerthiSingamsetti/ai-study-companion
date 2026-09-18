@@ -2,7 +2,7 @@
 
 ## Evidence and status
 
-This writeup follows [Project_Requirements.pdf](Project_Requirements.pdf) §§14, 18 and 20, and the P4 evaluation requirement in [antigravity_prompt_compact.md](antigravity_prompt_compact.md).
+This writeup follows [Project_Requirements.pdf](Project_Requirements.pdf) §§14, 18 and 20, and the P4 evaluation requirement in [compact_prompt.md](compact_prompt.md).
 
 Two different results must not be conflated:
 

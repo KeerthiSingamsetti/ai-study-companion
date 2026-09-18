@@ -1,6 +1,6 @@
 # Known Limitations
 
-References: [Project_Requirements.pdf](Project_Requirements.pdf) and [antigravity_prompt_compact.md](antigravity_prompt_compact.md). This document distinguishes intentional prototype tradeoffs, observed implementation gaps and unverified submission evidence. P5 is documentation-only and does not fix these items.
+References: [Project_Requirements.pdf](Project_Requirements.pdf) and [compact_prompt.md](compact_prompt.md). This document distinguishes intentional prototype tradeoffs, observed implementation gaps and unverified submission evidence. P5 is documentation-only and does not fix these items.
 
 ## Required environment and scope disclosures
 

@@ -2,7 +2,7 @@
 
 ## References and scope
 
-The requirements reference is [Project_Requirements.pdf](Project_Requirements.pdf), PRD v3.0, especially sections 3–18 and 20. The implementation brief is [antigravity_prompt_compact.md](antigravity_prompt_compact.md): extend StudyMate rather than rewrite it, prioritizing isolation, grounding, and the learning loop.
+The requirements reference is [Project_Requirements.pdf](Project_Requirements.pdf), PRD v3.0, especially sections 3–18 and 20. The implementation brief is [compact_prompt.md](compact_prompt.md): extend StudyMate rather than rewrite it, prioritizing isolation, grounding, and the learning loop.
 
 The PRD takes precedence over the brief's unfilled `[PRD]` placeholder. Requirements describe the intended product; the implementation details and limitations below describe the inspected repository, not a claim that every PRD workflow is fully wired.
 

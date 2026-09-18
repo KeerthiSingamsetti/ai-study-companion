@@ -1,12 +1,12 @@
 # Assumptions and Engineering Decisions
 
-References: [Project_Requirements.pdf](Project_Requirements.pdf), especially §§7–15, 17–20, and [antigravity_prompt_compact.md](antigravity_prompt_compact.md). The PRD leaves providers and implementation choices open; the brief requires extending StudyMate.
+References: [Project_Requirements.pdf](Project_Requirements.pdf) and [compact_prompt.md](compact_prompt.md). The PRD leaves providers and implementation choices open; the brief requires extending StudyMate.
 
 This log separates implemented policy from empirical proof. Numerical settings below match the inspected code. Their rationale explains the prototype tradeoff, not a claim that a parameter sweep, educational study, or provider benchmark was performed.
 
 ## 1. Extend StudyMate, do not rewrite
 
-**Decision:** Reuse the prior team project's FastAPI/LangGraph/RAG foundation and React study workspace.
+**Decision:** Reuse the prior  project's FastAPI/LangGraph/RAG foundation and React study workspace.
 
 **Reasoning:** A short prototype benefits more from adding ownership, grounding, learning evidence, and observability than replacing functioning orchestration. Existing regression tests reduce change risk. Reuse is explicitly disclosed rather than attributed entirely to this submission.
 

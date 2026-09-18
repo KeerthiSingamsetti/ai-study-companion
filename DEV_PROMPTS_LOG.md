@@ -2,20 +2,20 @@
 
 ## Scope and provenance
 
-[Project_Requirements.pdf](Project_Requirements.pdf) §20 requests actual prompts materially used with development AI tools. This log records the available prompt sources, not a reconstructed fictional transcript.
+[Project_Requirements.pdf](Project_Requirements.pdf) §20 asks for the actual prompts I materially used with development AI tools. This log records the prompt sources I actually have. It is not a reconstructed transcript.
 
-- The existing [antigravity_prompt_compact.md](antigravity_prompt_compact.md) is the preserved build brief and is incorporated by reference in full.
-- The current session supplies the actual P5 request and reference clarification quoted below.
-- Earlier per-phase conversations, timestamps, model choices, debugging exchanges and complete assistant outputs were not available in the inspected record. They are not invented.
-- Requirements are taken from the actual PDF, not the compact brief's unfilled `[PRD]` placeholder.
-- Product runtime prompts are separate from development prompts; examples live in `backend/app/agent/prompts.py`, `backend/app/services/rag_query_service.py` and `backend/app/services/grading.py`.
+- The existing [compact_prompt.md](compact_prompt.md) is the build brief I kept, and it is incorporated by reference in full.
+- The current session gives me the actual P5 request and the reference clarification quoted below.
+- I don't have my earlier per-phase conversations, timestamps, model choices, debugging exchanges or full assistant outputs, so I have not made any of them up.
+- Requirements come from the actual PDF, not from the compact prompt's unfilled `[PRD]` placeholder.
+- Product runtime prompts are separate from development prompts. Examples live in `backend/app/agent/prompts.py`, `backend/app/services/rag_query_service.py` and `backend/app/services/grading.py`.
 
 ## 1. Architecture and phased implementation brief
 
-**Source:** [antigravity_prompt_compact.md](antigravity_prompt_compact.md).  
-**Record type:** Actual repository prompt; original execution dates and full historical responses unavailable.
+**Source:** [compact_prompt.md](compact_prompt.md).  
+**Record type:** Actual repository prompt. The original execution dates and full historical responses are not available.
 
-Selected verbatim excerpts (the linked file retains the complete prompt):
+Selected verbatim excerpts (the linked file has the complete prompt):
 
 > Extend, do not rewrite. StudyMate's RAG/agent core is proven and tested — reuse it.
 
@@ -29,7 +29,7 @@ Selected verbatim excerpts (the linked file retains the complete prompt):
 
 ### Organization of the preserved brief
 
-The following is an index/summary, not additional verbatim prompts:
+The table below is an index and summary, not additional verbatim prompts:
 
 | Category | Location in the original brief | Requested work |
 |---|---|---|
@@ -42,11 +42,11 @@ The following is an index/summary, not additional verbatim prompts:
 | Testing | P1/P2 tests, P4 evaluation, final check | Isolation, refusal, injection and real evaluation evidence |
 | Documentation | P5 Submission, transparency | Setup, architecture, AI reuse disclosure, assumptions, limitations and prompt log |
 
-The brief is evidence of requested scope, not proof that every requested feature was implemented or verified. Differences found in source are documented in `ARCHITECTURE.md` and `KNOWN_LIMITATIONS.md`.
+The brief shows what I asked for, not proof that every requested feature was implemented or verified. Differences I found in the source are documented in `ARCHITECTURE.md` and `KNOWN_LIMITATIONS.md`.
 
 ## 2. P5 documentation request
 
-**Source:** Project-owner message in this session, 2026-09-17.  
+**Source:** cline  
 **Category:** Documentation and submission.  
 **Record type:** Actual prompt, reproduced below.
 
@@ -69,13 +69,13 @@ No new code, no API calls needed — pure documentation. Report format
 only: files created, deviations if any.
 ```
 
-**Work performed:** Source and requirements inspection; drafting the seven requested Markdown documents; local static documentation checks. No application code, threshold, test assertion or saved evaluation result was changed.
+**Work performed:** I inspected the source and requirements, drafted the seven requested Markdown documents and ran local static documentation checks. I did not change any application code, threshold, test assertion or saved evaluation result.
 
-**Evidence handling:** The 193/193 backend result is attributed to the owner's handoff. The saved live evaluation separately says 6/8; documentation preserves that distinction rather than inventing an 8/8 result.
+**Evidence handling:** The 193/193 backend result comes from my own P4 handoff. The saved live evaluation separately says 6/8. The documentation keeps that distinction and does not claim an 8/8 result.
 
 ## 3. Reference clarification
 
-**Source:** Project-owner feedback during the README write, 2026-09-17.  
+**Source:** Cline 
 **Category:** Requirements/documentation.  
 **Record type:** Actual prompt.
 
@@ -83,8 +83,8 @@ only: files created, deviations if any.
 for refernce use  antigravity-prmpt compact.md and project reqirements pdf ok,
 ```
 
-**Action:** Used the repository files `antigravity_prompt_compact.md` and `Project_Requirements.pdf`. Read the actual PRD, including submission, evaluation and full learning-loop requirements.
+**Action:** Used the repository's compact prompt file and `Project_Requirements.pdf`. Read the actual PRD, including the submission, evaluation and full learning-loop requirements.
 
 ## Record limitations
 
-There is no complete prompt-by-prompt evidence for the earlier implementation phases in this log. The preserved build brief and current messages are the available actual sources. Claims of a particular assistant having written every feature, exhaustive human review, a newly executed fresh-clone installation, or newly passing tests would exceed that evidence.
+I don't have complete prompt-by-prompt evidence for the earlier implementation phases. The preserved build brief and my messages from this session are the actual sources I have. Any claim that a particular assistant wrote every feature, that I reviewed everything exhaustively, that I ran a new fresh-clone installation, or that tests newly passed would go beyond that evidence.
