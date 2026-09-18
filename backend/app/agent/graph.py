@@ -48,7 +48,7 @@ from app.agent.nodes.chatbot import (
     create_synthesis_node,
 )
 from app.agent.state import AgentState
-from app.tools.memory_tool import get_default_memory_context
+from app.tools.memory_tool import memory_context_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ def create_graph(
     graph.add_node("intent_router", create_intent_router_node())
 
     # Six intent-specific chat nodes (each binds exactly one tool)
-    graph.add_node("general_chat", create_general_chat_node(configured_llm, get_default_memory_context))
+    graph.add_node("general_chat", create_general_chat_node(configured_llm, memory_context_for_user))
     graph.add_node("document_qa",  create_document_qa_node(configured_llm, rag_tool))
     graph.add_node("quiz",         create_quiz_node(configured_llm, quiz_tool))
     graph.add_node("flashcard",    create_flashcard_node(configured_llm, flash_tool))

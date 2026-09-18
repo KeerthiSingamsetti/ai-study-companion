@@ -70,7 +70,7 @@ These are limitations against PRD §§5, 12, 13 and 18, not features that should
 ## Security and operations
 
 - Ownership checks and isolation tests are present, but no exhaustive security audit or penetration-test claim is made.
-- **Legacy progress isolation gap:** `/progress`, `/progress/quiz-result` and `/progress/flashcard-result` still use `DEFAULT_USER_ID` rather than the authenticated user and selected project, violating the PRD's isolation requirement; remediation is deferred as a non-blocking follow-up before final submission if time permits.
+- **Progress/memory scoping (fixed):** `/progress`, the tutor's `get_study_progress` tool and the general-chat memory context now scope every read and write to the authenticated user **and** the active Project. A Project belongs to exactly one Space, so Project scoping also isolates Spaces. Legacy rows written before scoping carry `project_id = NULL` and are deliberately excluded from Project-scoped views rather than being shown everywhere.
 - The development JWT signing-secret fallback must be replaced with a strong secret. The README explicitly requires `SECRET_KEY`.
 - The legacy seeded `default_user` is not a documented usable login account.
 - Protect database/index files and backups; do not expose local serialized index assets or accept untrusted prebuilt indexes.

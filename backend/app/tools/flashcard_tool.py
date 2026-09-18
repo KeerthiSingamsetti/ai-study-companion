@@ -63,6 +63,8 @@ def generate_flashcards(
     *,
     embeddings: Any,
     db: Session,
+    user_id: str = DEFAULT_USER_ID,
+    project_id: str | None = None,
 ) -> FlashcardGenerateResponse:
     """Generate grounded recall flashcards using a single LLM attempt.
 
@@ -141,7 +143,7 @@ def generate_flashcards(
         event_type="flashcards_generated",
         topic=topic,
     )
-    record_studied_topic(db, DEFAULT_USER_ID, topic, document.id)
+    record_studied_topic(db, user_id, topic, document.id, project_id=project_id)
     return result
 
 
@@ -162,6 +164,7 @@ def create_flashcard_tool(llm: BaseChatModel, embeddings: Any) -> BaseTool:
         are uploaded, ask the user to specify one instead of guessing.
         """
         thread_id = config.get("configurable", {}).get("thread_id")
+        user_id = config.get("configurable", {}).get("user_id")
         if not isinstance(thread_id, str) or not thread_id:
             return "I need an active conversation before I can generate document flashcards.", {}
 
@@ -180,6 +183,8 @@ def create_flashcard_tool(llm: BaseChatModel, embeddings: Any) -> BaseTool:
                 num_cards,
                 embeddings=embeddings,
                 db=db,
+                user_id=user_id if isinstance(user_id, str) and user_id else DEFAULT_USER_ID,
+                project_id=thread_id,
             )
             return "Document-grounded study flashcards have been generated.", result.model_dump(mode="json")
         except FlashcardGenerationError as error:

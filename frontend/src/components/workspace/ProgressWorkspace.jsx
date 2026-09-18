@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Target, Trophy, Sparkles, ArrowRight, Activity, Brain } from 'lucide-react'
 import { getStudyProgress } from '../../lib/progressApi'
+import { useWorkspace } from '../../context/WorkspaceContext'
 import IndexTab from '../common/IndexTab'
 
 /* ── CountUp Component for Stat Numbers ─────────────────── */
@@ -34,17 +35,19 @@ function CountUp({ end = 0, duration = 600 }) {
  * count-up animations, and subtle lift-on-hover card interactions.
  */
 export default function ProgressWorkspace({ progressData, onUseTopic }) {
+  const { activeThreadId } = useWorkspace()
   const [localData, setLocalData] = useState(progressData)
 
   useEffect(() => {
     if (progressData) {
       setLocalData(progressData)
     } else {
-      getStudyProgress()
+      // Fetch only the active Project's records; Project is what isolates a Space.
+      getStudyProgress(activeThreadId)
         .then((data) => setLocalData(data))
         .catch(() => {})
     }
-  }, [progressData])
+  }, [progressData, activeThreadId])
 
   const activeData = progressData || localData
   const weakTopics = activeData?.weak_topics ?? []

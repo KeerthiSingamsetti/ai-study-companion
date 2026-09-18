@@ -256,6 +256,7 @@ def record_quiz_result(
             topic=payload.topic,
             correct_count=correct,
             total_questions=total,
+            project_id=project.id,
         )
 
     crud.log_event(
@@ -270,7 +271,9 @@ def record_quiz_result(
     )
     # Keep the factual study record in step with the new mastery evidence so the
     # Progress workspace and the Tutor's memory stay consistent.
-    record_studied_topic(db, current_user.id, payload.topic, payload.document_id)
+    record_studied_topic(
+        db, current_user.id, payload.topic, payload.document_id, project_id=project.id
+    )
     if score < 60:
         record_weak_topic(
             db,
@@ -279,6 +282,7 @@ def record_quiz_result(
             f"scored {correct}/{total} on {payload.topic}",
             payload.document_id,
             reason="quiz_score",
+            project_id=project.id,
         )
 
     recommendations = refresh_recommendations(db, user_id=current_user.id, project_id=project.id)
@@ -427,6 +431,7 @@ def grade_assessment(
             f"scored {overall:.0f}/100 on an open-ended question about {payload.concept}",
             payload.document_id,
             reason="assessment_score",
+            project_id=project.id,
         )
 
     # Calibration compares the pre-grading prediction with the result, so it must

@@ -26,6 +26,14 @@ def generate_plan(
     if doc is None or crud.get_thread(db, doc.thread_id, user_id=current_user.id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The requested document does not exist.")
     try:
-        return generate_study_plan(llm, payload.document_id, payload.topics, payload.num_days, payload.exam_date)
+        return generate_study_plan(
+            llm,
+            payload.document_id,
+            payload.topics,
+            payload.num_days,
+            payload.exam_date,
+            user_id=current_user.id,
+            project_id=doc.thread_id,
+        )
     except StudyPlanGenerationError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

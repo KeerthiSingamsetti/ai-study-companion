@@ -36,6 +36,8 @@ def generate_flashcards_endpoint(
             payload.num_cards,
             embeddings=embeddings,
             db=db,
+            user_id=current_user.id,
+            project_id=doc.thread_id,
         )
     except FlashcardGenerationError as error:
         status_code = (

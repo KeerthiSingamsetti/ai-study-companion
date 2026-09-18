@@ -1,15 +1,18 @@
-"""Structured, user-scoped long-term study-memory helpers."""
+"""Structured, user- and Project-scoped long-term study-memory helpers.
+
+Every read and write here is scoped to both a user and a Project. A Project
+belongs to exactly one Space, so Project scoping also guarantees that one
+Space's learning memory can never surface in another Space.
+"""
 
 from datetime import datetime
 from typing import Any
-
 
 from langchain.tools import tool
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from sqlalchemy.orm import Session
 
-from app.config import DEFAULT_USER_ID
 from app.db import crud
 from app.db.models import MemoryFactType
 from app.db.session import SessionLocal
@@ -22,15 +25,27 @@ def record_weak_topic(
     detail: str,
     document_id: str | None = None,
     reason: str = "quiz_score",
+    project_id: str | None = None,
 ) -> None:
     """Persist a deterministic weak-topic fact derived by backend rules."""
     crud.save_user_memory(
-        db, user_id, MemoryFactType.WEAK_TOPIC, topic, detail, document_id, reason=reason
+        db,
+        user_id,
+        MemoryFactType.WEAK_TOPIC,
+        topic,
+        detail,
+        document_id,
+        reason=reason,
+        project_id=project_id,
     )
 
 
 def record_studied_topic(
-    db: Session, user_id: str, topic: str, document_id: str | None
+    db: Session,
+    user_id: str,
+    topic: str,
+    document_id: str | None,
+    project_id: str | None = None,
 ) -> None:
     """Persist a factual record that the student generated study material."""
     crud.save_user_memory(
@@ -41,12 +56,15 @@ def record_studied_topic(
         f"Studied {topic}.",
         document_id,
         reason="manual",
+        project_id=project_id,
     )
 
 
-def get_memory_context(db: Session, user_id: str) -> str:
+def get_memory_context(
+    db: Session, user_id: str, project_id: str | None = None
+) -> str:
     """Return a short prompt fragment for a fresh conversation, never a transcript."""
-    facts = crud.get_user_memory(db, user_id, limit=8)
+    facts = crud.get_user_memory(db, user_id, limit=8, project_id=project_id)
     weak = [
         fact.topic
         for fact in facts
@@ -67,11 +85,18 @@ def get_memory_context(db: Session, user_id: str) -> str:
     return " ".join(parts)
 
 
-def get_default_memory_context() -> str:
-    """Load the temporary single-user context from a short-lived DB session."""
+def memory_context_for_user(user_id: str | None, project_id: str | None = None) -> str:
+    """Load memory for one user *within one Project* in its own short-lived session.
+
+    Used as the LangGraph provider: the graph passes the authenticated ``user_id``
+    and the active ``thread_id`` (Project) read from the run config, so the tutor
+    never opens a Space with another Space's context.
+    """
+    if not user_id:
+        return ""
     db = SessionLocal()
     try:
-        return get_memory_context(db, DEFAULT_USER_ID)
+        return get_memory_context(db, user_id, project_id)
     finally:
         db.close()
 
@@ -81,14 +106,16 @@ def _format_date(value: datetime) -> str:
     return value.date().isoformat()
 
 
-def get_study_progress(db: Session, user_id: str) -> dict[str, list[dict[str, Any]]]:
-    """Return factual study records only, with standardized weak-topic schemas."""
-    attempts = crud.get_quiz_attempts(db, user_id)
+def get_study_progress(
+    db: Session, user_id: str, project_id: str | None = None
+) -> dict[str, list[dict[str, Any]]]:
+    """Return factual study records only, scoped to one user and one Project."""
+    attempts = crud.get_quiz_attempts(db, user_id, project_id=project_id)
     weak_facts = crud.get_user_memory(
-        db, user_id, fact_type=MemoryFactType.WEAK_TOPIC
+        db, user_id, fact_type=MemoryFactType.WEAK_TOPIC, project_id=project_id
     )
     studied_facts = crud.get_user_memory(
-        db, user_id, fact_type=MemoryFactType.STUDIED_TOPIC
+        db, user_id, fact_type=MemoryFactType.STUDIED_TOPIC, project_id=project_id
     )
 
     formatted_attempts = []
@@ -142,6 +169,15 @@ def get_study_progress(db: Session, user_id: str) -> dict[str, list[dict[str, An
     }
 
 
+def _config_identity(config: RunnableConfig | None) -> tuple[str | None, str | None]:
+    """Read the authenticated user and active Project from a tool's run config."""
+    configurable = (config or {}).get("configurable", {}) if isinstance(config, dict) else {}
+    user_id = configurable.get("user_id")
+    project_id = configurable.get("thread_id")
+    return (
+        user_id if isinstance(user_id, str) and user_id else None,
+        project_id if isinstance(project_id, str) and project_id else None,
+    )
 
 
 def create_study_progress_tool() -> BaseTool:
@@ -152,9 +188,14 @@ def create_study_progress_tool() -> BaseTool:
         config: RunnableConfig,
     ) -> dict[str, list[dict[str, str]]]:
         """Use for the student's own quiz attempts, weaknesses, progress, or history. Takes no arguments."""
+        user_id, project_id = _config_identity(config)
+        if user_id is None:
+            # Fail closed: without an authenticated identity there is nothing
+            # safe to disclose, and never another user's or Space's records.
+            return {"quiz_attempts": [], "weak_topics": [], "studied_topics": []}
         db = SessionLocal()
         try:
-            return get_study_progress(db, DEFAULT_USER_ID)
+            return get_study_progress(db, user_id, project_id)
         finally:
             db.close()
 

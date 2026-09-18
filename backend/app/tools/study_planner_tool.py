@@ -16,7 +16,7 @@ from app.tools.memory_tool import record_studied_topic
 
 class StudyPlanGenerationError(RuntimeError): pass
 
-def generate_study_plan(llm: Any, document_id: str, topics: list[str] | None = None, num_days: int = 7, exam_date: str | None = None) -> StudyPlanResponse:
+def generate_study_plan(llm: Any, document_id: str, topics: list[str] | None = None, num_days: int = 7, exam_date: str | None = None, *, user_id: str = DEFAULT_USER_ID, project_id: str | None = None) -> StudyPlanResponse:
     db = SessionLocal()
     try:
         document = crud.get_document(db, document_id)
@@ -32,7 +32,7 @@ def generate_study_plan(llm: Any, document_id: str, topics: list[str] | None = N
             result = StudyPlanResponse.model_validate_json(raw)
         if result.document_id != document_id or result.num_days != num_days: raise StudyPlanGenerationError("Generated plan metadata did not match the request.")
         crud.log_study_event(db, thread_id=document.thread_id, document_id=document_id, event_type="study_plan_generated", topic=", ".join(selected_topics[:3]))
-        for topic in selected_topics[:3]: record_studied_topic(db, DEFAULT_USER_ID, topic, document_id)
+        for topic in selected_topics[:3]: record_studied_topic(db, user_id, topic, document_id, project_id=project_id)
         return result
     except (ValidationError, ValueError) as error:
         raise StudyPlanGenerationError("The planner model did not return valid plan JSON.") from error
@@ -43,11 +43,19 @@ def create_study_planner_tool(llm: Any) -> BaseTool:
     def generate_document_study_plan(config: RunnableConfig, num_days: int = 7, exam_date: str | None = None) -> tuple[str, dict[str, Any]]:
         """Create a study plan for the active uploaded document when the user asks for an exam schedule or study plan."""
         thread_id = config.get("configurable", {}).get("thread_id")
+        user_id = config.get("configurable", {}).get("user_id")
         db = SessionLocal()
         try:
             documents = crud.list_documents_for_thread(db, thread_id) if thread_id else []
             if len(documents) != 1: return "Please keep one uploaded document in this conversation before generating a study plan.", {}
-            result = generate_study_plan(llm, documents[0].id, num_days=num_days, exam_date=exam_date)
+            result = generate_study_plan(
+                llm,
+                documents[0].id,
+                num_days=num_days,
+                exam_date=exam_date,
+                user_id=user_id if isinstance(user_id, str) and user_id else DEFAULT_USER_ID,
+                project_id=thread_id,
+            )
             return "Your study plan is ready.", result.model_dump(mode="json")
         except StudyPlanGenerationError as error: return str(error), {}
         finally: db.close()

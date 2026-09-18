@@ -8,7 +8,7 @@ from pathlib import Path
 import os
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -91,10 +91,33 @@ def init_db() -> None:
                 ("ai_call_log", "user_id", "VARCHAR"),
                 ("ai_call_log", "project_id", "VARCHAR"),
                 ("assessment_attempts", "predicted_score", "FLOAT"),
+                # Progress/memory isolation: scope facts and quiz history to a Project.
+                ("user_memories", "project_id", "VARCHAR"),
+                ("quiz_attempts", "project_id", "VARCHAR"),
             ):
                 table_columns = {row["name"] for row in connection.execute(text(f"PRAGMA table_info({table})")).mappings()}
                 if table_columns and column not in table_columns:
                     connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
+
+    # Progress rows written before Project scoping carry project_id = NULL, which a
+    # Project-scoped read would hide. Attribute them from the document they belong
+    # to; rows with no document cannot be placed in a Project and stay NULL.
+    # Idempotent, so it is safe to run on every startup.
+    inspector = inspect(engine)
+    with engine.begin() as connection:
+        for table in ("quiz_attempts", "user_memories"):
+            if not inspector.has_table(table):
+                continue
+            columns = {column["name"] for column in inspector.get_columns(table)}
+            if "project_id" not in columns:
+                continue
+            connection.execute(
+                text(
+                    f"UPDATE {table} SET project_id = ("
+                    f"SELECT thread_id FROM documents WHERE documents.id = {table}.document_id"
+                    f") WHERE project_id IS NULL AND document_id IS NOT NULL"
+                )
+            )
 
     # Seed default_user row for legacy fallback & migration seed data
     db = SessionLocal()

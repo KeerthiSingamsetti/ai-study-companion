@@ -152,15 +152,25 @@ def _safe_bind_no_tools(llm: BaseChatModel) -> BaseChatModel:
 
 def create_general_chat_node(
     llm: BaseChatModel,
-    memory_context_provider: Callable[[], str] | None = None,
+    memory_context_provider: Callable[[str | None, str | None], str] | None = None,
 ) -> ChatbotNode:
-    """Node for GENERAL_CHAT intent: LLM only, no tools."""
+    """Node for GENERAL_CHAT intent: LLM only, no tools.
+
+    ``memory_context_provider`` is called with ``(user_id, project_id)`` taken
+    from the run config, so recalled context stays inside the active
+    Project/Space instead of leaking across the account.
+    """
 
     def general_chat(state: AgentState, config: RunnableConfig) -> dict[str, list[AnyMessage]]:
         messages = state.get("messages", [])
         is_new_thread = len(messages) == 1
+        configurable = (
+            (config or {}).get("configurable", {}) if isinstance(config, dict) else {}
+        )
         memory_context = (
-            memory_context_provider()
+            memory_context_provider(
+                configurable.get("user_id"), configurable.get("thread_id")
+            )
             if is_new_thread and memory_context_provider
             else ""
         )

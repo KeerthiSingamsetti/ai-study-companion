@@ -716,7 +716,9 @@ def save_user_memory(
     detail: str,
     document_id: str | None = None,
     reason: str = "quiz_score",
+    project_id: str | None = None,
 ) -> UserMemory:
+    """Upsert a fact within one Project, never across Projects of the same user."""
     fact = MemoryFactType(fact_type)
     clean_topic = topic.strip() if topic else None
 
@@ -726,6 +728,7 @@ def save_user_memory(
             db.query(UserMemory)
             .filter(
                 UserMemory.user_id == user_id,
+                UserMemory.project_id == project_id,
                 UserMemory.fact_type == fact,
                 func.lower(UserMemory.topic) == clean_topic.lower(),
             )
@@ -735,6 +738,7 @@ def save_user_memory(
     if existing is not None:
         existing.detail = detail[:500]
         existing.reason = reason
+        existing.project_id = project_id
         if document_id:
             existing.document_id = document_id
         existing.created_at = datetime.now(timezone.utc)
@@ -744,6 +748,7 @@ def save_user_memory(
 
     memory = UserMemory(
         user_id=user_id,
+        project_id=project_id,
         fact_type=fact,
         topic=clean_topic,
         reason=reason,
@@ -757,9 +762,16 @@ def save_user_memory(
 
 
 def get_user_memory(
-    db: Session, user_id: str, limit: int = 20, fact_type: MemoryFactType | str | None = None
+    db: Session,
+    user_id: str,
+    limit: int = 20,
+    fact_type: MemoryFactType | str | None = None,
+    project_id: str | None = None,
 ) -> list[UserMemory]:
+    """Return a user's facts, optionally restricted to one Project."""
     query = db.query(UserMemory).filter(UserMemory.user_id == user_id)
+    if project_id is not None:
+        query = query.filter(UserMemory.project_id == project_id)
     if fact_type is not None:
         query = query.filter(UserMemory.fact_type == MemoryFactType(fact_type))
     return query.order_by(UserMemory.created_at.desc()).limit(limit).all()
@@ -773,9 +785,11 @@ def create_quiz_attempt(
     topic: str,
     correct_count: int,
     total_questions: int,
+    project_id: str | None = None,
 ) -> QuizAttempt:
     attempt = QuizAttempt(
         user_id=user_id,
+        project_id=project_id,
         document_id=document_id,
         topic=topic,
         correct_count=correct_count,
@@ -788,11 +802,11 @@ def create_quiz_attempt(
     return attempt
 
 
-def get_quiz_attempts(db: Session, user_id: str, limit: int = 20) -> list[QuizAttempt]:
-    return (
-        db.query(QuizAttempt)
-        .filter(QuizAttempt.user_id == user_id)
-        .order_by(QuizAttempt.created_at.desc())
-        .limit(limit)
-        .all()
-    )
+def get_quiz_attempts(
+    db: Session, user_id: str, limit: int = 20, project_id: str | None = None
+) -> list[QuizAttempt]:
+    """Return a user's quiz attempts, optionally restricted to one Project."""
+    query = db.query(QuizAttempt).filter(QuizAttempt.user_id == user_id)
+    if project_id is not None:
+        query = query.filter(QuizAttempt.project_id == project_id)
+    return query.order_by(QuizAttempt.created_at.desc()).limit(limit).all()

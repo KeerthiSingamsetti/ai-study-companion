@@ -365,7 +365,7 @@ class ChatService:
                 if tool_fn is not None:
                     try:
                         result = self._answer_with_manual_tool_result(
-                            user_message, thread_id, tool_fn, tool_args
+                            user_message, thread_id, tool_fn, tool_args, user_id=user_id
                         )
                         if result is not None:
                             text, citations, artifacts = result
@@ -379,7 +379,11 @@ class ChatService:
             # Fallback: re-invoke the graph (or answer without tools)
             try:
                 return self._invoke(
-                    user_message, thread_id, reuse_pending_user_message=True
+                    user_message,
+                    thread_id,
+                    user_id=user_id,
+                    ai_call_id=ai_call_id,
+                    reuse_pending_user_message=True,
                 )
             except Exception:
                 try:
@@ -405,6 +409,7 @@ class ChatService:
         thread_id: str,
         tool_fn: Any,
         tool_args: dict[str, Any],
+        user_id: str | None = None,
     ) -> tuple[str, list[DocumentCitation], list[Any]] | None:
         """Execute *tool_fn* directly and feed the result back to the model.
 
@@ -415,7 +420,9 @@ class ChatService:
         from app.agent.prompts import GROUNDED_ANSWER_SYSTEM_PROMPT
         from app.agent.llm import create_llm
 
-        configurable = {"thread_id": thread_id}
+        configurable: dict[str, Any] = {"thread_id": thread_id}
+        if user_id:
+            configurable["user_id"] = user_id
         config = {"configurable": configurable}
 
         # Execute the tool with the thread config so it can resolve thread_id.

@@ -392,10 +392,19 @@ class MemoryFactType(str, Enum):
 
 class UserMemory(Base):
     __tablename__ = "user_memories"
-    __table_args__ = (Index("ix_user_memories_user_created", "user_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_user_memories_user_created", "user_id", "created_at"),
+        Index("ix_user_memories_user_project", "user_id", "project_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, default=DEFAULT_USER_ID)
+    # The Project whose learning context this fact belongs to. A Project lives
+    # inside exactly one Space, so scoping by project also isolates Spaces.
+    # Nullable only for legacy rows written before scoping existed.
+    project_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("threads.id", ondelete="SET NULL"), nullable=True
+    )
     fact_type: Mapped[MemoryFactType] = mapped_column(SqlEnum(MemoryFactType), nullable=False)
     topic: Mapped[str | None] = mapped_column(String, nullable=True)
     reason: Mapped[str] = mapped_column(String, nullable=False, default="quiz_score")
@@ -406,10 +415,18 @@ class UserMemory(Base):
 
 class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
-    __table_args__ = (Index("ix_quiz_attempts_user_created", "user_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_quiz_attempts_user_created", "user_id", "created_at"),
+        Index("ix_quiz_attempts_user_project", "user_id", "project_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, default=DEFAULT_USER_ID)
+    # See UserMemory.project_id: this is what keeps one Project's quiz history
+    # from appearing in another Project (or Space).
+    project_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("threads.id", ondelete="SET NULL"), nullable=True
+    )
     document_id: Mapped[str] = mapped_column(String, nullable=False)
     topic: Mapped[str] = mapped_column(String, nullable=False)
     correct_count: Mapped[int] = mapped_column(Integer, nullable=False)

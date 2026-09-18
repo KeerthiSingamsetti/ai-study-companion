@@ -72,6 +72,8 @@ def generate_quiz(
     *,
     embeddings: Any,
     db: Session,
+    user_id: str = DEFAULT_USER_ID,
+    project_id: str | None = None,
 ) -> QuizGenerateResponse:
     """Generate one grounded multiple-choice quiz using a single LLM attempt.
 
@@ -166,7 +168,7 @@ def generate_quiz(
         event_type="quiz_generated",
         topic=topic,
     )
-    record_studied_topic(db, DEFAULT_USER_ID, topic, document.id)
+    record_studied_topic(db, user_id, topic, document.id, project_id=project_id)
     return result
 
 
@@ -188,6 +190,7 @@ def create_quiz_tool(llm: BaseChatModel, embeddings: Any) -> BaseTool:
         are uploaded, ask the user to specify one instead of guessing.
         """
         thread_id = config.get("configurable", {}).get("thread_id")
+        user_id = config.get("configurable", {}).get("user_id")
         if not isinstance(thread_id, str) or not thread_id:
             return "I need an active conversation before I can generate a document quiz.", {}
 
@@ -207,6 +210,8 @@ def create_quiz_tool(llm: BaseChatModel, embeddings: Any) -> BaseTool:
                 difficulty,
                 embeddings=embeddings,
                 db=db,
+                user_id=user_id if isinstance(user_id, str) and user_id else DEFAULT_USER_ID,
+                project_id=thread_id,
             )
             return "A document-grounded quiz has been generated.", result.model_dump(mode="json")
         except QuizGenerationError as error:

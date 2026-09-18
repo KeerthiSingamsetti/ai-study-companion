@@ -37,6 +37,8 @@ def generate_quiz_endpoint(
             payload.difficulty,
             embeddings=embeddings,
             db=db,
+            user_id=current_user.id,
+            project_id=doc.thread_id,
         )
     except QuizGenerationError as error:
         status_code = (

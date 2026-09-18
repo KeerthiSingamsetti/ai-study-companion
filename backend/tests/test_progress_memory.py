@@ -87,10 +87,35 @@ def _progress_client(
     return TestClient(app)
 
 
+def _seed_project(
+    session_factory: sessionmaker[Session],
+    user_id: str,
+    *,
+    project_id: str,
+    document_id: str,
+) -> None:
+    """Create an owned Project plus one document so progress writes can be scoped."""
+    with session_factory() as db:
+        if crud.get_thread(db, project_id) is None:
+            crud.create_thread(db, thread_id=project_id, title=project_id, user_id=user_id)
+        if crud.get_document(db, document_id) is None:
+            crud.create_document(
+                db,
+                document_id=document_id,
+                thread_id=project_id,
+                filename=f"{document_id}.pdf",
+                vectorstore_path=f"index/{document_id}",
+            )
+
+
 def test_quiz_result_persists_attempt_and_derives_weak_topic_below_sixty_percent() -> None:
     """A low factual score produces both an attempt row and a weak-topic fact."""
     session_factory = _session_factory()
-    response = _progress_client(session_factory).post(
+    client = _progress_client(session_factory)
+    _seed_project(
+        session_factory, "progress-user", project_id="project-a", document_id="document-1"
+    )
+    response = client.post(
         "/progress/quiz-result",
         headers=_auth_headers_for("progress-user"),
         json={
@@ -113,6 +138,8 @@ def test_quiz_result_persists_attempt_and_derives_weak_topic_below_sixty_percent
     assert [(attempt.topic, attempt.correct_count, attempt.total_questions) for attempt in attempts] == [
         ("linear regression", 3, 7)
     ]
+    assert [attempt.project_id for attempt in attempts] == ["project-a"]
+    assert [fact.project_id for fact in weak_topics] == ["project-a"]
     assert [fact.detail for fact in weak_topics] == [
         "scored 3/7 on linear regression"
     ]
@@ -121,11 +148,19 @@ def test_quiz_result_persists_attempt_and_derives_weak_topic_below_sixty_percent
 def test_progress_results_are_scoped_to_the_reporting_user() -> None:
     """One student's quiz never appears in another student's records."""
     session_factory = _session_factory()
-    _progress_client(session_factory, user_id="student-a").post(
+    client_a = _progress_client(session_factory, user_id="student-a")
+    _progress_client(session_factory, user_id="student-b")
+    _seed_project(
+        session_factory, "student-a", project_id="project-a", document_id="document-a"
+    )
+    _seed_project(
+        session_factory, "student-b", project_id="project-b", document_id="document-b"
+    )
+    client_a.post(
         "/progress/quiz-result",
         headers=_auth_headers_for("student-a"),
         json={
-            "document_id": "document-1",
+            "document_id": "document-a",
             "topic": "linear regression",
             "results": [
                 {"question": f"Question {index}", "correct": index < 3}
@@ -170,7 +205,11 @@ def test_progress_routes_reject_anonymous_callers() -> None:
 def test_passing_quiz_is_logged_without_a_weak_topic_fact() -> None:
     """A score at or above 60% never becomes a weak-topic memory."""
     session_factory = _session_factory()
-    response = _progress_client(session_factory).post(
+    client = _progress_client(session_factory)
+    _seed_project(
+        session_factory, "progress-user", project_id="project-b", document_id="document-2"
+    )
+    response = client.post(
         "/progress/quiz-result",
         headers=_auth_headers_for("progress-user"),
         json={
@@ -229,7 +268,10 @@ def test_study_progress_returns_only_recorded_structured_data(monkeypatch) -> No
     monkeypatch.setattr(memory_tool, "SessionLocal", session_factory)
     tool = memory_tool.create_study_progress_tool()
     assert tool.args_schema.model_json_schema()["properties"] == {}
-    assert tool.invoke({}) == data
+    assert (
+        tool.invoke({}, config={"configurable": {"user_id": DEFAULT_USER_ID}})
+        == data
+    )
 
 
 def test_progress_tool_answers_from_recorded_attempts_without_retrieval(monkeypatch) -> None:
@@ -272,7 +314,11 @@ def test_progress_tool_answers_from_recorded_attempts_without_retrieval(monkeypa
 
     response, sources = ChatService(
         create_graph(model, tools=[progress_tool])
-    ).chat("Which quizzes have I attempted?", thread_id="progress-thread")
+    ).chat(
+        "Which quizzes have I attempted?",
+        thread_id="progress-thread",
+        user_id=DEFAULT_USER_ID,
+    )
 
     assert response == "Your recorded calculus quiz score is 3/7."
     assert sources == []
@@ -359,7 +405,11 @@ def test_tool_completion_keeps_progress_schema_available(monkeypatch) -> None:
 def test_flashcard_learning_tag_creates_weak_topic_fact() -> None:
     """Explicit flashcard learning feedback remains a valid weak-topic signal."""
     session_factory = _session_factory()
-    response = _progress_client(session_factory).post(
+    client = _progress_client(session_factory)
+    _seed_project(
+        session_factory, "progress-user", project_id="project-c", document_id="document-5"
+    )
+    response = client.post(
         "/progress/flashcard-result",
         headers=_auth_headers_for("progress-user"),
         json={
@@ -380,6 +430,155 @@ def test_flashcard_learning_tag_creates_weak_topic_fact() -> None:
     assert [fact.detail for fact in weak_topics] == [
         "marked 1 cards as still learning on decision trees"
     ]
+
+def test_progress_get_is_limited_to_the_requested_project() -> None:
+    """A Project-scoped read never returns another Project's (or Space's) memory."""
+    session_factory = _session_factory()
+    client = _progress_client(session_factory, user_id="multi-user")
+    _seed_project(
+        session_factory, "multi-user", project_id="project-1", document_id="doc-1"
+    )
+    _seed_project(
+        session_factory, "multi-user", project_id="project-2", document_id="doc-2"
+    )
+    with session_factory() as db:
+        memory_tool.record_weak_topic(
+            db,
+            "multi-user",
+            "geometry",
+            "scored 0/3 on geometry",
+            "doc-2",
+            project_id="project-2",
+        )
+
+    scoped = client.get(
+        "/progress",
+        headers=_auth_headers_for("multi-user"),
+        params={"project_id": "project-2"},
+    )
+    empty = client.get(
+        "/progress",
+        headers=_auth_headers_for("multi-user"),
+        params={"project_id": "project-1"},
+    )
+
+    assert scoped.status_code == 200
+    assert [item["topic"] for item in scoped.json()["weak_topics"]] == ["geometry"]
+    assert empty.status_code == 200
+    assert empty.json()["weak_topics"] == []
+
+
+def test_progress_get_rejects_a_project_the_caller_does_not_own() -> None:
+    """Guessing a Project id returns 404 rather than another Space's records."""
+    session_factory = _session_factory()
+    client = _progress_client(session_factory, user_id="owner-user")
+    _seed_project(
+        session_factory, "owner-user", project_id="owned-project", document_id="owned-doc"
+    )
+
+    assert (
+        client.get(
+            "/progress",
+            headers=_auth_headers_for("owner-user"),
+            params={"project_id": "owned-project"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            "/progress",
+            headers=_auth_headers_for("owner-user"),
+            params={"project_id": "someone-elses-project"},
+        ).status_code
+        == 404
+    )
+
+
+def test_progress_tool_scopes_to_the_active_project_from_config(monkeypatch) -> None:
+    """The agent tool reads user + Project from the run config and fails closed."""
+    session_factory = _session_factory()
+    with session_factory() as db:
+        if db.get(User, "scoped-user") is None:
+            db.add(
+                User(
+                    id="scoped-user",
+                    email="scoped-user@example.com",
+                    hashed_password="x",
+                    display_name="Scoped User",
+                    role="student",
+                )
+            )
+            db.commit()
+    _seed_project(
+        session_factory, "scoped-user", project_id="project-x", document_id="doc-x"
+    )
+    _seed_project(
+        session_factory, "scoped-user", project_id="project-y", document_id="doc-y"
+    )
+    with session_factory() as db:
+        crud.create_quiz_attempt(
+            db,
+            user_id="scoped-user",
+            document_id="doc-x",
+            topic="algebra",
+            correct_count=1,
+            total_questions=4,
+            project_id="project-x",
+        )
+        memory_tool.record_weak_topic(
+            db,
+            "scoped-user",
+            "algebra",
+            "scored 1/4 on algebra",
+            "doc-x",
+            project_id="project-x",
+        )
+
+    monkeypatch.setattr(memory_tool, "SessionLocal", session_factory)
+    tool = memory_tool.create_study_progress_tool()
+
+    in_project = tool.invoke(
+        {},
+        config={"configurable": {"user_id": "scoped-user", "thread_id": "project-x"}},
+    )
+    other_project = tool.invoke(
+        {},
+        config={"configurable": {"user_id": "scoped-user", "thread_id": "project-y"}},
+    )
+    anonymous = tool.invoke({})
+
+    assert [item["topic"] for item in in_project["quiz_attempts"]] == ["algebra"]
+    assert [item["topic"] for item in in_project["weak_topics"]] == ["algebra"]
+    assert other_project == {"quiz_attempts": [], "weak_topics": [], "studied_topics": []}
+    assert anonymous == {"quiz_attempts": [], "weak_topics": [], "studied_topics": []}
+
+
+def test_memory_context_is_scoped_to_the_active_project(monkeypatch) -> None:
+    """The tutor's opening memory never crosses into another Project or Space."""
+    session_factory = _session_factory()
+    monkeypatch.setattr(memory_tool, "SessionLocal", session_factory)
+    with session_factory() as db:
+        crud.create_thread(
+            db, thread_id="project-a", title="Project A", user_id=DEFAULT_USER_ID
+        )
+        crud.create_thread(
+            db, thread_id="project-b", title="Project B", user_id=DEFAULT_USER_ID
+        )
+        memory_tool.record_weak_topic(
+            db,
+            DEFAULT_USER_ID,
+            "trigonometry",
+            "scored 1/5 on trigonometry",
+            project_id="project-a",
+        )
+
+    assert "trigonometry" in memory_tool.memory_context_for_user(
+        DEFAULT_USER_ID, "project-a"
+    )
+    assert memory_tool.memory_context_for_user(DEFAULT_USER_ID, "project-b") == ""
+    # No authenticated identity means no memory to reveal.
+    assert memory_tool.memory_context_for_user(None, "project-a") == ""
+
 
 def test_tool_validation_failure_returns_a_graceful_chat_message() -> None:
     """A hallucinated tool call cannot surface as an unhandled API failure."""
