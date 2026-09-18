@@ -16,5 +16,14 @@ CONCEPT_MATCH_THRESHOLD = 0.88
 REPEATED_MISTAKE_THRESHOLD = 3
 REPEATED_MISTAKE_WINDOW = 10
 
+# --- Confidence calibration ---
+# Learners predict their own score before grading. A prediction that runs this
+# far above what they actually score is the signal that matters: they believe
+# they know something they cannot yet produce. Deliberately deterministic, like
+# the mastery maths — the LLM never gets to judge a learner's self-awareness.
+CALIBRATION_OVERCONFIDENT_GAP = 12.0
+CALIBRATION_UNDERCONFIDENT_GAP = -12.0
+CALIBRATION_MIN_SAMPLES = 1
+
 # --- Grounding & Retrieval ---
 MIN_RELEVANCE_THRESHOLD = 0.35

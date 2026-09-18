@@ -85,6 +85,47 @@ export function masteryBand(score) {
   return { label: 'Needs attention', tone: 'danger' }
 }
 
+/**
+ * The one-tap self-report scale. Mirrors CONFIDENCE_SCALE in
+ * backend/app/services/calibration.py — the levels must stay in step with the
+ * backend, which is the side that does the arithmetic.
+ */
+export const CONFIDENCE_OPTIONS = [
+  { level: 1, label: 'Guess', score: 20 },
+  { level: 2, label: 'Not sure', score: 40 },
+  { level: 3, label: 'Fairly sure', score: 60 },
+  { level: 4, label: 'Confident', score: 80 },
+  { level: 5, label: 'Certain', score: 100 },
+]
+
+const CALIBRATION_META = {
+  overconfident: {
+    label: 'Overconfident',
+    cls: 'border-[var(--danger)]/30 bg-[var(--danger-soft)] text-[var(--danger)]',
+    accent: 'var(--danger)',
+  },
+  underconfident: {
+    label: 'Underconfident',
+    cls: 'border-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]',
+    accent: 'var(--accent-blue)',
+  },
+  well_calibrated: {
+    label: 'Well calibrated',
+    cls: 'border-[var(--success)]/30 bg-[var(--success-soft)] text-[var(--success)]',
+    accent: 'var(--success)',
+  },
+  insufficient_evidence: {
+    label: 'Not enough evidence',
+    cls: 'border-[var(--border)] text-[var(--text-muted)]',
+    accent: 'var(--text-muted)',
+  },
+}
+
+/** Badge styling for a calibration direction reported by the backend. */
+export function calibrationMeta(direction) {
+  return CALIBRATION_META[direction] ?? CALIBRATION_META.insufficient_evidence
+}
+
 /** Compact relative timestamp for activity feeds. */
 export function relativeTime(value) {
   if (!value) return ''

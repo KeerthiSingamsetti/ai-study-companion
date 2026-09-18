@@ -39,11 +39,14 @@ from app.schemas.learning import (
     AssessmentHistoryItem,
     AssessmentQuestion,
     AssessmentSummaryResponse,
+    CalibrationReport,
+    CalibrationSnapshot,
     ConceptGrowth,
     MasterySnapshot,
     QuizResultRequest,
     QuizResultResponse,
 )
+from app.services import calibration as calibration_service
 from app.services.grading import GradingError, grade_open_ended_answer
 from app.services.learning import (
     choose_adaptive_concept,
@@ -379,6 +382,7 @@ def grade_assessment(
         answer=payload.answer,
         understanding=grade.understanding,
         accuracy=grade.accuracy,
+        predicted_score=payload.predicted_score,
         concepts_covered_json=json.dumps(grade.concepts_covered),
         concepts_missing_json=json.dumps(grade.concepts_missing),
         overall_score=overall,
@@ -425,6 +429,26 @@ def grade_assessment(
             reason="assessment_score",
         )
 
+    # Calibration compares the pre-grading prediction with the result, so it must
+    # be read *after* the attempt is persisted to include this answer.
+    calibration = None
+    if payload.predicted_score is not None:
+        rated = (
+            db.query(AssessmentAttempt)
+            .filter(
+                AssessmentAttempt.user_id == current_user.id,
+                AssessmentAttempt.project_id == project.id,
+                AssessmentAttempt.concept_id == concept.id,
+                AssessmentAttempt.predicted_score.isnot(None),
+            )
+            .all()
+        )
+        calibration = CalibrationSnapshot(
+            **calibration_service.concept_snapshot(
+                concept.name, [(row.predicted_score, row.overall_score) for row in rated]
+            )
+        )
+
     recommendations = refresh_recommendations(db, user_id=current_user.id, project_id=project.id)
     return AssessmentGradeResponse(
         understanding=grade.understanding,
@@ -437,6 +461,7 @@ def grade_assessment(
             db, user_id=current_user.id, project_id=project.id, concept_id=concept.id, concept_name=concept.name
         ),
         assessment_average=_average_assessment_score(db, current_user.id, project.id),
+        calibration=calibration,
         recommendations=[
             {"id": row.id, "text": row.recommendation, "trigger": row.trigger} for row in recommendations
         ],
@@ -497,11 +522,15 @@ def assessment_summary(
                 understanding=row.understanding,
                 accuracy=row.accuracy,
                 overall_score=row.overall_score,
+                predicted_score=row.predicted_score,
                 feedback=feedback_by_attempt.get(row.id, ""),
                 created_at=row.created_at,
             )
             for row in attempts
         ],
+        calibration=CalibrationReport(
+            **calibration_service.report(db, user_id=current_user.id, project_id=project.id)
+        ),
         recommendations=[
             {"id": row.id, "text": row.recommendation, "trigger": row.trigger}
             for row in crud.list_active_recommendations_for_project(db, current_user.id, project.id)

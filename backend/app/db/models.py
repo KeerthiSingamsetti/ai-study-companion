@@ -270,6 +270,9 @@ class AssessmentAttempt(Base):
     answer: Mapped[str] = mapped_column(Text, nullable=False)
     understanding: Mapped[float] = mapped_column(Float, nullable=False)
     accuracy: Mapped[float] = mapped_column(Float, nullable=False)
+    # The learner's own pre-grading prediction (0-100). Nullable because answers
+    # graded before this was captured, and skipped predictions, have no value.
+    predicted_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     concepts_covered_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     concepts_missing_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     overall_score: Mapped[float] = mapped_column(Float, nullable=False)

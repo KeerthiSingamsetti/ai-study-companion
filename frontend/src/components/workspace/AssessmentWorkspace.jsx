@@ -6,6 +6,7 @@ import {
   Brain,
   CheckCircle2,
   FileText,
+  Gauge,
   GraduationCap,
   Lightbulb,
   Loader2,
@@ -27,7 +28,7 @@ import {
   Panel,
   StatCard,
 } from '../ui/primitives'
-import { formatDelta, growthOf, relativeTime } from '../../lib/learning'
+import { CONFIDENCE_OPTIONS, calibrationMeta, formatDelta, growthOf, relativeTime } from '../../lib/learning'
 
 const fieldClass =
   'w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/70 focus:bg-[var(--surface-3)]'
@@ -64,6 +65,76 @@ function ScoreDial({ label, value, tone }) {
   )
 }
 
+/**
+ * Expected vs produced. Two bars on the same 0-100 axis is the whole idea: when
+ * the grey bar sits well above the amber one, the learner is studying something
+ * that feels known. Rendered only when both numbers exist.
+ */
+function CalibrationBars({ predicted, actual }) {
+  if (typeof predicted !== 'number' || typeof actual !== 'number') return null
+  const rows = [
+    { label: 'Expected', value: predicted, color: 'var(--text-muted)' },
+    { label: 'Actually scored', value: actual, color: 'var(--accent)' },
+  ]
+  return (
+    <div className="space-y-2.5">
+      {rows.map((row) => (
+        <div key={row.label} className="space-y-1">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+              {row.label}
+            </span>
+            <span className="font-mono-numbers text-[11px] font-bold text-[var(--text-primary)]">
+              {Math.round(row.value)}%
+            </span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-3)]">
+            <motion.div
+              className="h-full rounded-full"
+              style={{ background: row.color }}
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.max(0, Math.min(100, row.value))}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Immediate calibration feedback on the answer that was just graded. */
+function CalibrationCard({ snapshot }) {
+  if (!snapshot) return null
+  const meta = calibrationMeta(snapshot.direction)
+  // One decimal, exactly as the API reports it — rounding here would disagree
+  // with the headline sentence for gaps sitting on a .5 boundary.
+  const bias = Math.round((snapshot.bias ?? 0) * 10) / 10
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+          <Gauge className="size-3.5 text-[var(--accent)]" /> Confidence calibration
+        </span>
+        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${meta.cls}`}>
+          {meta.label}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <CalibrationBars predicted={snapshot.mean_predicted} actual={snapshot.mean_actual} />
+        <div className="text-center">
+          <p className="font-mono-numbers text-2xl font-bold text-[var(--text-primary)]">
+            {bias > 0 ? '+' : ''}
+            {bias}
+          </p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">point gap</p>
+        </div>
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-[var(--text-secondary)]">{snapshot.insight}</p>
+    </div>
+  )
+}
+
 export default function AssessmentWorkspace({ threadId, documents = [], prefill, onOpenWorkspace }) {
   const [mastery, setMastery] = useState([])
   const [overall, setOverall] = useState(null)
@@ -80,6 +151,12 @@ export default function AssessmentWorkspace({ threadId, documents = [], prefill,
   const [grading, setGrading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  // Self-reported confidence, captured before the answer is graded. This is the
+  // only signal in the product that measures what the learner *believes* they
+  // know, and the gap between belief and result is what calibration reports.
+  const [confidence, setConfidence] = useState(null)
+
+  const predictedScore = CONFIDENCE_OPTIONS.find((option) => option.level === confidence)?.score ?? null
 
   const readyDocuments = useMemo(
     () => documents.filter((doc) => doc.chunk_count > 0 || doc.page_count > 0),
@@ -111,6 +188,7 @@ export default function AssessmentWorkspace({ threadId, documents = [], prefill,
     setQuestion(null)
     setResult(null)
     setAnswer('')
+    setConfidence(null)
     setError('')
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -134,6 +212,7 @@ export default function AssessmentWorkspace({ threadId, documents = [], prefill,
     setError('')
     setResult(null)
     setAnswer('')
+    setConfidence(null)
     try {
       const generated = await generateAssessment({
         projectId: threadId,
@@ -166,6 +245,7 @@ export default function AssessmentWorkspace({ threadId, documents = [], prefill,
         rubric: question.rubric,
         documentId: documentId || undefined,
         difficulty,
+        predictedScore,
       })
       setResult(graded)
       await load()
@@ -350,10 +430,50 @@ export default function AssessmentWorkspace({ threadId, documents = [], prefill,
                   />
                 </label>
 
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                      <Gauge className="size-3.5 text-[var(--accent)]" /> Before you see the score — how well did you do?
+                    </span>
+                    {confidence == null && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--accent)]">
+                        Pick one to unlock grading
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {CONFIDENCE_OPTIONS.map((option) => {
+                      const selected = confidence === option.level
+                      return (
+                        <button
+                          key={option.level}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => setConfidence(option.level)}
+                          className={`rounded-[var(--radius-control)] border px-2 py-2 text-center transition ${
+                            selected
+                              ? 'border-[var(--accent)]/60 bg-[var(--accent-soft)] text-[var(--accent)]'
+                              : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <span className="block text-[11px] font-bold">{option.label}</span>
+                          <span className="mt-0.5 block font-mono-numbers text-[10px] text-[var(--text-muted)]">
+                            ~{option.score}/100
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="mt-2.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                    Your prediction is stored with the graded result and compared with it — the gap is your calibration,
+                    and knowing it is what separates studying what feels familiar from studying what you can actually retrieve.
+                  </p>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="submit"
-                    disabled={grading || !answer.trim()}
+                    disabled={grading || !answer.trim() || confidence == null}
                     className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-[#1A1405] transition hover:bg-[var(--accent-strong)] disabled:opacity-50"
                   >
                     {grading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
@@ -365,6 +485,7 @@ export default function AssessmentWorkspace({ threadId, documents = [], prefill,
                       setQuestion(null)
                       setAnswer('')
                       setResult(null)
+                      setConfidence(null)
                     }}
                     className="rounded-[var(--radius-control)] border border-[var(--border)] px-3.5 py-2.5 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
                   >
@@ -439,6 +560,8 @@ export default function AssessmentWorkspace({ threadId, documents = [], prefill,
                   </div>
                 )}
 
+                <CalibrationCard snapshot={result.calibration} />
+
                 {result.recommendations?.length > 0 && (
                   <div className="rounded-2xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-4">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
@@ -509,6 +632,54 @@ export default function AssessmentWorkspace({ threadId, documents = [], prefill,
             )}
           </Panel>
 
+          {summary?.calibration && (
+            <Panel
+              title="Confidence calibration"
+              subtitle="What you expected vs what you produced"
+              icon={Gauge}
+            >
+              <div className="space-y-4">
+                <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+                  {summary.calibration.headline}
+                </p>
+
+                {summary.calibration.concepts.length > 0 && (
+                  <ul className="space-y-3">
+                    {summary.calibration.concepts.map((row) => {
+                      const meta = calibrationMeta(row.direction)
+                      return (
+                        <li
+                          key={row.concept_id}
+                          className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-xs font-semibold text-[var(--text-primary)]">
+                              {row.concept}
+                            </span>
+                            <span
+                              className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${meta.cls}`}
+                            >
+                              {meta.label}
+                            </span>
+                          </div>
+                          <div className="mt-2.5">
+                            <CalibrationBars predicted={row.mean_predicted} actual={row.mean_actual} />
+                          </div>
+                          <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-muted)]">{row.insight}</p>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+
+                <p className="text-[10px] leading-relaxed text-[var(--text-muted)]">
+                  Predictions are compared with graded results by deterministic arithmetic — the model grades the
+                  answer, never your self-awareness.
+                </p>
+              </div>
+            </Panel>
+          )}
+
           <Panel title="Assessment history" subtitle="Your graded explanations, newest first" icon={GraduationCap}>
             {history.length === 0 ? (
               <EmptyState
@@ -528,6 +699,11 @@ export default function AssessmentWorkspace({ threadId, documents = [], prefill,
                     </div>
                     <p className="flex flex-wrap items-center gap-x-3 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
                       {item.concept && <span>{item.concept}</span>}
+                      {typeof item.predicted_score === 'number' && (
+                        <span className="font-mono-numbers">
+                          expected {Math.round(item.predicted_score)}%
+                        </span>
+                      )}
                       <span>{relativeTime(item.created_at)}</span>
                     </p>
                     {item.feedback && (

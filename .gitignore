@@ -5,8 +5,14 @@ backend/__pycache__/
 *.pyc
 backend/*.db
 backend/*.db-*
+# Timestamped backups written by scripts/cleanup_test_accounts.py before --apply
+backend/*.db.backup-*
 backend/.pytest_cache/
 backend/.mypy_cache/
+# Disposable database used by the isolated pytest run (see backend/conftest.py)
+backend/tests/.studymate-test.db
+backend/tests/.studymate-test.db-wal
+backend/tests/.studymate-test.db-shm
 
 # Environment
 .env

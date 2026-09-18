@@ -1,5 +1,13 @@
-"""Non-model HTTP smoke check through the running Vite development proxy."""
+"""Non-model HTTP smoke check through the running Vite development proxy.
+
+The pytest suite now runs against an isolated test database
+(``backend/tests/.studymate-test.db``), so fixture users such as
+``testuser@example.com`` no longer exist in ``backend/chatbot.db``. This script
+therefore looks up an account that really exists in the development database
+instead of creating one. Point ``VERIFY_USER_EMAIL`` at the account to use.
+"""
 from pathlib import Path
+import os
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -11,11 +19,19 @@ from app.db import crud
 from app.db.session import SessionLocal
 
 
+DEFAULT_EMAIL = 'testuser@example.com'
+
+
 def main():
+    email = os.environ.get('VERIFY_USER_EMAIL', DEFAULT_EMAIL)
     with SessionLocal() as db:
-        user = crud.get_user_by_email(db, 'testuser@example.com')
+        user = crud.get_user_by_email(db, email)
         if user is None:
-            raise RuntimeError('Run the auth tests first to create the test fixture user.')
+            raise RuntimeError(
+                f'No account {email!r} exists in the development database, and this '
+                'smoke check intentionally does not create one. Register an account '
+                'through the app, or set VERIFY_USER_EMAIL to an existing account.'
+            )
         token = create_access_token(user_id=user.id, role=user.role)
     with httpx.Client(base_url='http://localhost:5173/api', timeout=15, trust_env=False) as client:
         headers = {'Authorization': f'Bearer {token}'}

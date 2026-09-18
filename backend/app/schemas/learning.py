@@ -87,6 +87,41 @@ class AssessmentGradeRequest(BaseModel):
     rubric: str = "Assess conceptual understanding, factual accuracy, relevance, and reasoning."
     document_id: str | None = None
     difficulty: Difficulty = "medium"
+    # The learner's prediction, captured before grading. Optional so an answer
+    # can still be graded when the learner declines to predict.
+    predicted_score: float | None = Field(default=None, ge=0, le=100)
+
+
+class CalibrationSnapshot(BaseModel):
+    """How well a learner's self-assessment tracked their graded results."""
+
+    concept: str
+    samples: int
+    mean_predicted: float | None = None
+    mean_actual: float | None = None
+    bias: float | None = None
+    mean_absolute_error: float | None = None
+    direction: str
+    insight: str
+
+
+class CalibrationConceptRow(CalibrationSnapshot):
+    concept_id: str
+
+
+class CalibrationReport(BaseModel):
+    """Project-level calibration plus the per-concept breakdown behind it."""
+
+    project_id: str
+    samples: int
+    mean_predicted: float | None = None
+    mean_actual: float | None = None
+    bias: float | None = None
+    mean_absolute_error: float | None = None
+    direction: str
+    overconfidence_gap: float | None = None
+    headline: str
+    concepts: list[CalibrationConceptRow] = Field(default_factory=list)
 
 
 class AssessmentGradeResponse(BaseModel):
@@ -98,6 +133,7 @@ class AssessmentGradeResponse(BaseModel):
     feedback: str
     mastery: MasterySnapshot | None = None
     assessment_average: float | None = None
+    calibration: CalibrationSnapshot | None = None
     recommendations: list[dict] = Field(default_factory=list)
 
 
@@ -124,6 +160,7 @@ class AssessmentHistoryItem(BaseModel):
     understanding: float
     accuracy: float
     overall_score: float
+    predicted_score: float | None = None
     feedback: str = ""
     created_at: object
 
@@ -135,4 +172,5 @@ class AssessmentSummaryResponse(BaseModel):
     overall_progress: float | None = None
     growth: list[ConceptGrowth] = Field(default_factory=list)
     history: list[AssessmentHistoryItem] = Field(default_factory=list)
+    calibration: CalibrationReport | None = None
     recommendations: list[dict] = Field(default_factory=list)

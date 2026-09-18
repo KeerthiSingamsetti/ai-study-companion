@@ -11,7 +11,7 @@ Two different results must not be conflated:
 | Project-owner P4 handoff | **193/193 backend tests passing** | Owner-confirmed automated test status; not rerun during P5 |
 | [Saved live P4 results](backend/eval/results.md) | **6/8 cases passed (75%)** | The result in the inspected artifact, including captured answers and sources |
 
-The saved artifact was not regenerated or edited for documentation. P4 completion is accepted as the owner's phase handoff, but it does not change the evaluation file to 8/8. No new API calls, model downloads, test executions or live scoring were performed for this writeup.
+The saved artifact was not regenerated or edited for documentation. P4 completion is accepted as the owner's phase handoff; it does not change the saved evaluation file to 8/8, because the saved file is a separate, concrete artifact, not a summary of owner handoff. No new API calls, model downloads, test runs, or live scoring were performed for this writeup.
 
 ## Backend regression coverage
 

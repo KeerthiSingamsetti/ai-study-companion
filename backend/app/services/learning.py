@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.config import CONCEPT_MATCH_THRESHOLD, REPEATED_MISTAKE_THRESHOLD, REPEATED_MISTAKE_WINDOW
 from app.db import crud
 from app.db.models import AssessmentAttempt, Concept
+from app.services import calibration as calibration_service
 
 # How many recent evidence points feed the repeated-mistake signal.
 RECOMMENDATION_EVIDENCE_WINDOW = 10
@@ -140,8 +141,28 @@ def build_recommendations(db: Any, *, user_id: str, project_id: str) -> list[dic
             AssessmentAttempt.concept_id == concept.id
         ).order_by(AssessmentAttempt.created_at.desc()).limit(10).all())
         scores = [attempt.overall_score for attempt in attempts]
+        # Confidence calibration is a second, independent signal: a learner who
+        # expects more than they produce will not study, because they believe the
+        # material is already known. That outranks a low score on its own.
+        calibration = calibration_service.concept_snapshot(
+            concept.name,
+            [
+                (attempt.predicted_score, attempt.overall_score)
+                for attempt in attempts
+                if attempt.predicted_score is not None
+            ],
+        )
         if repeated_mistake_detected(scores):
             results.append({"concept": concept.name, "trigger": "repeated_mistake", "action": f"Review {concept.name} with a worked example, then retry a short assessment."})
+        elif calibration["direction"] == calibration_service.DIRECTION_OVERCONFIDENT:
+            results.append({
+                "concept": concept.name,
+                "trigger": "overconfidence",
+                "action": (
+                    f"You predicted {calibration['mean_predicted']:.0f}/100 on {concept.name} but averaged "
+                    f"{calibration['mean_actual']:.0f}/100. Prove it closed-book — no notes, then one short assessment."
+                ),
+            })
         elif mastery.mastery_score < 60:
             results.append({"concept": concept.name, "trigger": "low_mastery", "action": f"Review {concept.name} and complete targeted practice."})
         elif len(scores) >= 2 and classify_growth(scores[1], scores[0]) == "improving":

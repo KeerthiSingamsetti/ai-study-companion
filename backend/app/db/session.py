@@ -90,6 +90,7 @@ def init_db() -> None:
                 ("ingestion_jobs", "project_id", "VARCHAR"),
                 ("ai_call_log", "user_id", "VARCHAR"),
                 ("ai_call_log", "project_id", "VARCHAR"),
+                ("assessment_attempts", "predicted_score", "FLOAT"),
             ):
                 table_columns = {row["name"] for row in connection.execute(text(f"PRAGMA table_info({table})")).mappings()}
                 if table_columns and column not in table_columns:

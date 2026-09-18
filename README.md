@@ -163,7 +163,9 @@ Tests marked `integration` may require network access/model downloads. To exclud
 python -m pytest tests/ -v -m "not integration"
 ```
 
-Marker filtering is not an offline sandbox; inspect configuration and use a disposable development database because test fixtures initialize tables and users.
+**Test database isolation.** `backend/conftest.py` points `DATABASE_URL` at a throwaway file (`backend/tests/.studymate-test.db`) before importing the application, so the suite never opens or writes to `backend/chatbot.db`. The file is discarded at the start of every run and is git-ignored; a guard aborts the session if the override is ever bypassed. `scripts/test_real_chat_e2e.py` gives its temporary uvicorn server its own disposable database for the same reason.
+
+Marker filtering is still not an offline sandbox (tests may download models), but tests can no longer register fixture users (`iso_a_*`, `test-user-*`, `newuser_*`, ...) into real data. Accounts created by earlier runs of the pre-isolation suite can be removed with `python scripts/cleanup_test_accounts.py`, which reports by default, only ever matches documented test patterns, and writes a timestamped backup before `--apply` deletes anything.
 
 The P4 manifest can be checked without making a model call:
 

@@ -48,8 +48,22 @@ export function generateAssessment({ projectId, concept, documentId, numQuestion
   })
 }
 
-/** Grade one open-ended answer and receive the refreshed mastery estimate. */
-export function gradeAssessment({ projectId, concept, question, answer, referenceAnswer, rubric, documentId, difficulty = 'medium' }) {
+/**
+ * Grade one open-ended answer and receive the refreshed mastery estimate.
+ * `predictedScore` is the learner's own pre-grading prediction (0-100);
+ * supplying it is what makes the calibration comparison possible.
+ */
+export function gradeAssessment({
+  projectId,
+  concept,
+  question,
+  answer,
+  referenceAnswer,
+  rubric,
+  documentId,
+  difficulty = 'medium',
+  predictedScore = null,
+}) {
   return request('/learning/assessment/grade', {
     method: 'POST',
     body: JSON.stringify({
@@ -61,6 +75,7 @@ export function gradeAssessment({ projectId, concept, question, answer, referenc
       rubric: rubric || undefined,
       document_id: documentId || null,
       difficulty,
+      predicted_score: predictedScore,
     }),
   })
 }

@@ -13,11 +13,20 @@ def _db_with_attempts(attempts):
     return DB()
 
 
+def _attempt(overall_score, predicted_score=None):
+    """Mirrors AssessmentAttempt: a result, plus an optional pre-grading prediction.
+
+    The prediction stays unset here so these tests keep exercising the
+    score-only triggers; confidence calibration has its own tests.
+    """
+    return SimpleNamespace(overall_score=overall_score, predicted_score=predicted_score)
+
+
 def _recommendations(monkeypatch, *, mastery_score, attempts):
     concept = SimpleNamespace(id="c1", name="ATP")
     mastery = SimpleNamespace(mastery_score=mastery_score)
     monkeypatch.setattr("app.tools.recommendation_tool.crud.list_mastery_for_user_and_project", lambda *_: [(concept, mastery)])
-    return build_recommendations(_db_with_attempts([SimpleNamespace(overall_score=s) for s in attempts]), user_id="u", project_id="p")
+    return build_recommendations(_db_with_attempts([_attempt(s) for s in attempts]), user_id="u", project_id="p")
 
 
 def test_repeated_mistakes_take_priority_in_recommendations(monkeypatch):
