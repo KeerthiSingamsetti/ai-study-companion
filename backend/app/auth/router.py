@@ -17,13 +17,21 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(user_in: UserCreate, db: Annotated[Session, Depends(get_db)]) -> Token:
-    """Register a new user and return JWT token."""
+    """Register a new user and return JWT token.
+
+    Role is never taken from the client. The first registered account becomes
+    the platform administrator; everyone else is a student. Later promotions
+    are a direct DB operation, not a public option.
+    """
     existing = crud.get_user_by_email(db, user_in.email)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A user with this email already exists.",
         )
+    role = "student"
+    if not crud.has_real_registered_user(db):
+        role = "admin"
     user_id = str(uuid.uuid4())
     hashed_pwd = hash_password(user_in.password)
     user = crud.create_user(
@@ -32,7 +40,7 @@ def register(user_in: UserCreate, db: Annotated[Session, Depends(get_db)]) -> To
         email=user_in.email,
         hashed_password=hashed_pwd,
         display_name=user_in.display_name,
-        role=user_in.role,
+        role=role,
     )
     access_token = create_access_token(user_id=user.id, role=user.role)
     return Token(access_token=access_token, token_type="bearer", user=UserResponse.model_validate(user))

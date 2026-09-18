@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
+import { useCallback, useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
 import { generateFlashcards } from '../../lib/flashcardsApi'
 import { reportFlashcardResult } from '../../lib/progressApi'
@@ -63,14 +63,6 @@ function PlusIcon() {
   )
 }
 
-function SparklesIcon() {
-  return (
-    <svg className="size-3.5 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-    </svg>
-  )
-}
-
 /* ── Circular Progress Ring Component ───────────────────────────── */
 function CircularProgress({ value = 0, size = 48, strokeWidth = 4 }) {
   const radius = (size - strokeWidth) / 2
@@ -120,7 +112,6 @@ export default function FlashcardsWorkspace({
   flashcardPrefill,
   onFlashcardsUpdate,
   documents = [],
-  threadId,
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
@@ -133,25 +124,6 @@ export default function FlashcardsWorkspace({
   const [xp, setXp] = useState(150)
   const [cardRatings, setCardRatings] = useState({})
   const [direction, setDirection] = useState(0) // -1 for left, 1 for right
-
-  // Mouse Parallax Motion Values
-  const x = useMotionValue(0)
-  const y = useMotionValue(0)
-  const rotateX = useTransform(y, [-100, 100], [8, -8])
-  const rotateY = useTransform(x, [-100, 100], [-8, 8])
-
-  function handleMouseMove(event) {
-    const rect = event.currentTarget.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    const centerY = rect.top + rect.height / 2
-    x.set(event.clientX - centerX)
-    y.set(event.clientY - centerY)
-  }
-
-  function handleMouseLeave() {
-    x.set(0)
-    y.set(0)
-  }
 
   useEffect(() => {
     if (flashcardData) {
@@ -321,7 +293,6 @@ export default function FlashcardsWorkspace({
   const definitionText = currentCard?.back ?? currentCard?.definition ?? currentCard?.answer ?? ''
   const difficulty = currentCard?.difficulty ?? activeDeck.difficulty ?? 'medium'
   const exampleText = currentCard?.example ?? currentCard?.examples ?? null
-  const hintText = currentCard?.hint ?? currentCard?.memory_trick ?? null
   const formulaText = currentCard?.formula ?? null
 
   return (

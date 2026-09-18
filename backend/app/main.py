@@ -75,6 +75,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 from app.auth.router import router as auth_router
 from app.api.spaces import router as spaces_router
 from app.api.analytics import router as analytics_router, admin_router
+from app.api.admin import router as admin_console_router
+from app.api.learning import router as learning_router
 
 
 def create_app() -> FastAPI:
@@ -92,6 +94,8 @@ def create_app() -> FastAPI:
     app.include_router(thread_router)
     app.include_router(analytics_router)
     app.include_router(admin_router)
+    app.include_router(admin_console_router)
+    app.include_router(learning_router)
     return app
 
 

@@ -240,3 +240,106 @@ select {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.55; }
   30% { transform: translateY(-4px); opacity: 1; }
 }
+
+/* ── Landing page ───────────────────────────────────────────
+   A cinematic marketing surface: falling light streaks behind a
+   floating glass nav, gradient display type and numbered step cards.
+   Kept on the same ink/gold tokens as the app so the product does not
+   look like two different brands. */
+
+/* Vertical light streaks — the falling aurora lines behind the hero. */
+.streak-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 74%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 74%, transparent 100%);
+}
+
+.streak {
+  position: absolute;
+  top: 0;
+  width: 1.5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent 0%, var(--streak-color, rgba(245, 181, 74, 0.7)) 45%, transparent 100%);
+  animation-name: streak-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes streak-fall {
+  0% {
+    transform: translate3d(0, -40vh, 0);
+    opacity: 0;
+  }
+  12% { opacity: var(--streak-opacity, 0.6); }
+  82% { opacity: var(--streak-opacity, 0.6); }
+  100% {
+    transform: translate3d(var(--streak-drift, 0px), 120vh, 0);
+    opacity: 0;
+  }
+}
+
+/* Brand gradient used on display headlines and CTA fills. */
+.text-gradient-brand {
+  background: linear-gradient(102deg, #F5B54A 0%, #F8D695 34%, #7FE3D3 72%, #60A5FA 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-gradient-cta {
+  background: linear-gradient(102deg, #F5B54A 0%, #E8A83A 46%, #2DD4BF 130%);
+}
+
+/* Soft halo behind the hero headline. */
+.hero-halo {
+  background: radial-gradient(60% 60% at 50% 40%, rgba(245, 181, 74, 0.16), transparent 70%),
+    radial-gradient(50% 50% at 80% 20%, rgba(96, 165, 250, 0.12), transparent 70%);
+}
+
+/* Anchor offset so jump links land below the floating nav. */
+.landing-anchor {
+  scroll-margin-top: 116px;
+}
+
+/* Pulse that travels along the loop rail. */
+.rail-dot {
+  position: absolute;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 12px 2px rgba(245, 181, 74, 0.6);
+  animation: rail-travel 9s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+@keyframes rail-travel {
+  0% { left: 0%; opacity: 0; }
+  8% { opacity: 1; }
+  92% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+/* Slow highlight sweep across primary CTAs. */
+.shine {
+  position: relative;
+  overflow: hidden;
+}
+.shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.42) 50%, transparent 62%);
+  transform: translateX(-130%);
+  animation: shine-sweep 5s ease-in-out infinite;
+}
+
+@keyframes shine-sweep {
+  0%, 65% { transform: translateX(-130%); }
+  92%, 100% { transform: translateX(130%); }
+}

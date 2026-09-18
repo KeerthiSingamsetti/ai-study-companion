@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import time
 from uuid import uuid4
 from collections.abc import Iterator
@@ -13,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from groq import APIConnectionError, APITimeoutError, BadRequestError
 from sqlalchemy.orm import Session
 
+from app.agent.llm import resolve_model_name
 from app.api.dependencies import get_chat_service, get_thread_service
 from app.auth.dependencies import get_current_user
 from app.db.models import User
@@ -43,7 +43,7 @@ def send_chat_message(
         ) from error
 
     call = crud.log_ai_call(
-        db, model=os.getenv("GROQ_MODEL", "unknown"), feature="tutor_chat", latency_ms=0,
+        db, model=resolve_model_name(), feature="tutor_chat", latency_ms=0,
         user_id=current_user.id, project_id=thread.id,
     )
     started = time.perf_counter()

@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react'
 import QuizEmptyUpload from './QuizEmptyUpload'
 import { motion } from 'framer-motion'
+import { getAdaptiveQuizTarget } from '../../lib/learningApi'
+
+/* ── Adaptive selection icon ───────────────────────────── */
+function TargetIcon() {
+  return (
+    <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+    </svg>
+  )
+}
 
 /* ── SVG Icons ────────────────────────────────────────── */
 function QuizSparklesIcon() {
@@ -52,12 +64,19 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
   const [selectedDocId, setSelectedDocId] = useState(quizPrefill?.documentId ?? '')
   const [isCustomizing, setIsCustomizing] = useState(false)
 
+  /* Adaptive selection: when no topic was handed to us, the backend's mastery
+     policy chooses what to practise next. Manual entry stays one click away. */
+  const [adaptive, setAdaptive] = useState(null)
+  const [adaptiveLoading, setAdaptiveLoading] = useState(false)
+  const [manualOverride, setManualOverride] = useState(false)
+
   const isFromStudyProgress = Boolean(quizPrefill?.topic)
 
   // Update form fields when quizPrefill prop changes
   useEffect(() => {
     if (!quizPrefill) return
     setIsCustomizing(false)
+    setManualOverride(false)
 
     setTopic(quizPrefill.topic ?? '')
     setDifficulty(quizPrefill.difficulty ?? 'medium')
@@ -66,6 +85,34 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
       setSelectedDocId(quizPrefill.documentId)
     }
   }, [quizPrefill])
+
+  useEffect(() => {
+    // Only when the learner did not arrive with a topic already chosen.
+    if (quizPrefill?.topic || !threadId) return undefined
+    let alive = true
+    // Opening a project again should land on the policy's suggestion, not on a
+    // previous manual override.
+    setManualOverride(false)
+    setAdaptiveLoading(true)
+    getAdaptiveQuizTarget(threadId)
+      .then((target) => {
+        if (!alive) return
+        setAdaptive(target)
+        setTopic(target.concept)
+        setDifficulty(target.difficulty)
+        if (target.document_id) setSelectedDocId(target.document_id)
+      })
+      .catch(() => {
+        // 409 means there is no mastery evidence yet — fall back to manual.
+        if (alive) setAdaptive(null)
+      })
+      .finally(() => {
+        if (alive) setAdaptiveLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [quizPrefill?.topic, threadId])
 
   // Keep selectedDocId aligned with available documents without overwriting explicit prefill
   useEffect(() => {
@@ -112,6 +159,106 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
     { value: 'medium', label: 'Medium' },
     { value: 'hard', label: 'Hard' },
   ]
+
+  // ── Adaptive Selection Banner View (default path) ─────────────────
+  if (!isFromStudyProgress && !manualOverride && !isCustomizing && adaptiveLoading) {
+    return (
+      <div className="flex flex-col gap-3 max-w-xl mx-auto font-sans" role="status">
+        <div className="skeleton h-[132px] w-full" />
+        <p className="text-center text-[11px] text-[var(--text-muted)]">
+          Checking your mastery to choose the best next topic…
+        </p>
+      </div>
+    )
+  }
+
+  if (!isFromStudyProgress && !manualOverride && !isCustomizing && adaptive) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex max-w-xl flex-col gap-5 mx-auto font-sans"
+      >
+        <div className="glass-card edge-highlight space-y-5 rounded-[var(--radius-card)] p-6">
+          <div className="flex items-start gap-3 border-b border-[var(--border)] pb-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] text-[var(--accent)]">
+              <TargetIcon />
+            </span>
+            <div className="min-w-0">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
+                <TargetIcon /> Adaptive selection
+              </span>
+              <h2 className="mt-1.5 font-display text-lg font-bold leading-snug text-[var(--text-primary)]">
+                Practise “{adaptive.concept}”
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">{adaptive.reason}.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 font-mono-numbers text-[var(--text-primary)]">
+              Mastery {Math.round(adaptive.mastery_score)}%
+            </span>
+            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 font-mono-numbers text-[var(--text-primary)]">
+              {adaptive.attempts} attempt{adaptive.attempts === 1 ? '' : 's'}
+            </span>
+            <span className="rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-2.5 py-1 uppercase tracking-wider text-[var(--accent)]">
+              {adaptive.difficulty}
+            </span>
+            {adaptive.recent_mistakes > 0 && (
+              <span className="rounded-full border border-[var(--warning)]/30 bg-[var(--warning-soft)] px-2.5 py-1 text-[var(--warning)]">
+                {adaptive.recent_mistakes} recent slip{adaptive.recent_mistakes === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+
+          <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
+            Chosen from your concept mastery and recent mistakes — not from your last answer alone.
+            {adaptive.document_name ? ` Grounded in ${adaptive.document_name}.` : ''}
+          </p>
+
+          {!hasDocuments && (
+            <div className="space-y-2.5 rounded-xl border border-[var(--warning)]/30 bg-[var(--warning-soft)] p-3 text-xs text-[var(--warning)]">
+              This project has no documents yet. Upload a PDF right here to generate the quiz.
+              <QuizEmptyUpload threadId={threadId} onUploaded={onUploaded} />
+            </div>
+          )}
+
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            type="button"
+            disabled={!topic.trim() || !hasDocuments || isGenerating}
+            onClick={handleSubmit}
+            className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--accent)] py-3.5 text-sm font-bold text-[#1A1405] shadow-[var(--glow-accent)] transition hover:bg-[var(--accent-strong)] disabled:opacity-40"
+          >
+            {isGenerating ? (
+              <>
+                <span className="size-3.5 animate-spin rounded-full border-2 border-[#1A1405] border-t-transparent" />
+                Generating quiz…
+              </>
+            ) : (
+              <>
+                <PlayIcon />
+                Start adaptive quiz
+              </>
+            )}
+          </motion.button>
+
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setManualOverride(true)}
+              className="font-semibold text-[var(--text-muted)] underline transition hover:text-[var(--text-primary)]"
+            >
+              Choose a different topic
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
 
   // ── Weak Topic Context Banner View (From Progress) ─────────────────
   if (isFromStudyProgress && !isCustomizing) {
@@ -377,6 +524,21 @@ export default function QuizSetupForm({ documents = [], isGenerating = false, on
             'Generate Quiz'
           )}
         </button>
+
+        {!isFromStudyProgress && adaptive && manualOverride && (
+          <button
+            type="button"
+            onClick={() => {
+              // Hand control back to the policy, including its difficulty.
+              setManualOverride(false)
+              setTopic(adaptive.concept)
+              setDifficulty(adaptive.difficulty)
+            }}
+            className="w-full text-center text-[11px] font-semibold text-[var(--accent)] underline transition hover:text-[var(--accent-strong)]"
+          >
+            Use the adaptive suggestion instead ({adaptive.concept} · {adaptive.difficulty})
+          </button>
+        )}
       </form>
     </div>
   )

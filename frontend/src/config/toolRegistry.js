@@ -1,4 +1,5 @@
 import {
+  Boxes,
   Calendar,
   ChartNoAxesCombined,
   FileText,
@@ -7,15 +8,20 @@ import {
   Layers,
   LayoutDashboard,
   MessageSquare,
-  ShieldCheck,
+  SquarePen,
   TrendingUp,
 } from 'lucide-react'
 
 /**
  * Workspace registry.
  *
- * `group` drives sidebar sectioning; `adminOnly` hides the Admin console from
- * student accounts (the API separately enforces the admin role).
+ * Ordering is deliberate: it follows the learning loop a student actually walks
+ * (`Materials → Tutor → Quiz → Assessment → Growth → Analytics`) rather than an
+ * arbitrary feature list, so the sidebar reads as a guided path.
+ *
+ * `group` drives sidebar sectioning. The registry is student-only by design:
+ * admin-role accounts are routed to the dedicated Admin Console in the gate and
+ * never mount this sidebar at all (see ASSUMPTIONS.md, admin interface decision).
  */
 export const WORKSPACES = [
   {
@@ -24,17 +30,17 @@ export const WORKSPACES = [
     title: 'Home Dashboard',
     shortName: 'Home',
     icon: LayoutDashboard,
-    group: 'Learn',
+    group: 'Overview',
     description: 'Continue learning, progress and your next action',
   },
   {
-    id: 'chat',
-    label: 'AI Tutor',
-    title: 'AI Tutor',
-    shortName: 'Tutor',
-    icon: MessageSquare,
-    group: 'Learn',
-    description: 'Grounded answers with citations from your material',
+    id: 'space-dashboard',
+    label: 'Space Overview',
+    title: 'Space Dashboard',
+    shortName: 'Space',
+    icon: Boxes,
+    group: 'Overview',
+    description: 'Projects, activity, progress and areas needing attention',
   },
   {
     id: 'documents',
@@ -46,13 +52,31 @@ export const WORKSPACES = [
     description: 'Upload and process course PDFs',
   },
   {
+    id: 'chat',
+    label: 'AI Tutor',
+    title: 'AI Tutor',
+    shortName: 'Tutor',
+    icon: MessageSquare,
+    group: 'Learn',
+    description: 'Grounded answers with citations from your material',
+  },
+  {
     id: 'quiz',
-    label: 'Practice Quiz',
+    label: 'Adaptive Quiz',
     title: 'Adaptive Quiz',
     shortName: 'Quiz',
     icon: HelpCircle,
     group: 'Practise',
-    description: 'Adaptive practice with mastery feedback',
+    description: 'Adaptive multiple-choice practice with mastery feedback',
+  },
+  {
+    id: 'assessment',
+    label: 'Open-ended Assessment',
+    title: 'Open-ended Assessment',
+    shortName: 'Assess',
+    icon: SquarePen,
+    group: 'Practise',
+    description: 'Explain concepts in your own words and get graded feedback',
   },
   {
     id: 'flashcards',
@@ -99,24 +123,16 @@ export const WORKSPACES = [
     group: 'Grow',
     description: 'Cross-project trends and AI usage',
   },
-  {
-    id: 'admin',
-    label: 'Admin Console',
-    title: 'Admin Operations',
-    shortName: 'Admin',
-    icon: ShieldCheck,
-    group: 'Operate',
-    adminOnly: true,
-    description: 'Users, jobs, AI usage and system health',
-  },
 ]
 
 export const WORKSPACE_TOOLS = WORKSPACES
 
-/** Workspaces visible to the signed-in account. */
-export function visibleWorkspaces(role) {
-  return WORKSPACES.filter((workspace) => !workspace.adminOnly || role === 'admin')
+/** Workspaces visible to the signed-in account. Admins never reach this
+ * registry at all — the gate routes them to the dedicated Admin Console —
+ * so every entry here is a student learning surface. */
+export function visibleWorkspaces() {
+  return WORKSPACES
 }
 
 /** Stable render order of sidebar groups. */
-export const WORKSPACE_GROUPS = ['Learn', 'Practise', 'Grow', 'Operate']
+export const WORKSPACE_GROUPS = ['Overview', 'Learn', 'Practise', 'Grow', 'Operate']

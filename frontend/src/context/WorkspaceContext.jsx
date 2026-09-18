@@ -6,6 +6,7 @@ export function WorkspaceProvider({ children, value = {} }) {
   const [activeWorkspace, setActiveWorkspace] = useState('chat')
   const [activeThreadIdInternal, setActiveThreadIdInternal] = useState(null)
   const [quizPrefill, setQuizPrefill] = useState(null)
+  const [assessmentPrefill, setAssessmentPrefill] = useState(null)
   const [flashcardPrefill, setFlashcardPrefill] = useState(null)
   const [progressData, setProgressData] = useState(null)
   const [quizData, setQuizData] = useState(null)
@@ -30,6 +31,11 @@ export function WorkspaceProvider({ children, value = {} }) {
       setQuizData(null) // Clear active quiz data to ensure weak topic setup form is shown immediately
       setQuizPrefill(prefillPayload)
       setActiveWorkspace('quiz')
+    } else if (targetWorkspace === 'assessment') {
+      // Open-ended assessment takes the same topic/document context, so a
+      // "practise this weak concept" action can route to either practice mode.
+      setAssessmentPrefill(prefillPayload)
+      setActiveWorkspace('assessment')
     } else if (targetWorkspace === 'flashcards') {
       setFlashcardData(null) // Clear active flashcard data
       setFlashcardPrefill({
@@ -50,6 +56,8 @@ export function WorkspaceProvider({ children, value = {} }) {
     setActiveThreadId,
     quizPrefill,
     setQuizPrefill,
+    assessmentPrefill,
+    setAssessmentPrefill,
     flashcardPrefill,
     setFlashcardPrefill,
     progressData,

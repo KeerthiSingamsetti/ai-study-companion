@@ -142,7 +142,31 @@ The upload route currently ingests inline and records successful job state after
 
 Likewise, available AI log fields and optional LangSmith traces are useful diagnostics, but placeholder/missing metrics must not be presented as measured latency, token use or cost.
 
-## 14. Evaluation and submission evidence
+## 14. Admin role = oversight interface, not the student learning UI
+
+**Decision:** Admin-role accounts never see the student application (Spaces/Projects onboarding, learning
+sidebar, Tutor/Quiz/Flashcards/Progress/Study Plan). On sign-in they land directly in a dedicated
+Admin Console whose only navigation is oversight: Users, Spaces, Projects, Activity, AI Usage,
+AI Evaluation, Background Jobs and System Health.
+
+Inspecting one user's learning journey (PRD §16: Projects, activity, assessments, progress, AI usage)
+happens inside the console as a **read-only inspector panel** over that user's data. The admin is never
+given their own live Tutor/Quiz/Flashcard session — the console shows the learner's records; it does not
+act as the learner.
+
+**Reasoning:** The PRD frames admin purely as an inspection/oversight role (§16 uses only
+"inspect/view/filter" verbs, never "create" or "practise"), so admin capabilities are modelled as verbs
+over other users' data. A platform admin using the AI Tutor as a personal chatbot doesn't align with the
+role's actual purpose, and exposing student workspaces to admins would also widen the surface for
+accidental cross-account actions. Admins who want the learner experience create a separate student
+account. Separation also keeps the student shell free of role-conditional UI: the sidebar registry is
+student-only by construction rather than filtered by `role` at render time.
+
+**Boundary:** The PRD doesn't specify whether admins need their own Spaces/Projects; assumed no, since
+§16 frames the admin role as platform oversight, not as a learner. Promotion of additional admins remains
+a direct DB update — there is deliberately no in-product path that grants the admin role.
+
+## 15. Evaluation and submission evidence
 
 - The owner confirmed P4 and 193/193 backend tests; P5 accepts that handoff without rerunning.
 - Saved `backend/eval/results.md` records **6/8**, not 8/8. Backend test success and live model quality measure different things.

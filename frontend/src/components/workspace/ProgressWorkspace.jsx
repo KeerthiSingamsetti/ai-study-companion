@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Target, Trophy, Sparkles, ArrowRight, Activity, Brain } from 'lucide-react'
 import { getStudyProgress } from '../../lib/progressApi'
 import IndexTab from '../common/IndexTab'

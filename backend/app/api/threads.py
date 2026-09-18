@@ -12,7 +12,7 @@ from app.db import crud
 from app.db.models import User
 from app.db.session import get_db
 from app.schemas.study_log import StudyLogResponse
-from app.schemas.thread import ThreadChatMessage, ThreadCreateRequest, ThreadRenameRequest, ThreadResponse
+from app.schemas.thread import ThreadChatMessage, ThreadCreateRequest, ThreadResponse, ThreadUpdateRequest
 from app.services.chat_service import ChatService
 from app.services.thread_service import ThreadNotFoundError, ThreadService
 
@@ -20,7 +20,15 @@ router = APIRouter(prefix="/threads", tags=["threads"])
 
 
 def _thread_response(thread) -> ThreadResponse:
-    return ThreadResponse(id=thread.id, title=thread.title, space_id=thread.space_id, created_at=thread.created_at, updated_at=thread.updated_at)
+    return ThreadResponse(
+        id=thread.id,
+        title=thread.title,
+        space_id=thread.space_id,
+        description=thread.description,
+        learning_goal=thread.learning_goal,
+        created_at=thread.created_at,
+        updated_at=thread.updated_at,
+    )
 
 
 @router.post("", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
@@ -35,41 +43,64 @@ def create_project(
     title = " ".join(payload.title.split())
     if not title:
         raise HTTPException(status_code=422, detail="Project title cannot be blank.")
+    description = " ".join((payload.description or "").split()) or None
+    learning_goal = " ".join((payload.learning_goal or "").split()) or None
     thread = crud.create_thread(
         db, thread_id=str(uuid4()), title=title,
         user_id=current_user.id, space_id=payload.space_id,
+        description=description, learning_goal=learning_goal,
     )
     crud.log_event(
         db, event_key=f"project:{thread.id}:created", user_id=current_user.id,
         project_id=thread.id, event_type="project_created",
-        payload_json=json.dumps({"title": title, "space_id": payload.space_id}),
+        payload_json=json.dumps({"title": title, "space_id": payload.space_id,
+                                 "learning_goal": learning_goal}),
     )
     return _thread_response(thread)
 
 
 @router.patch("/{thread_id}", response_model=ThreadResponse)
-def rename_thread(
+def update_project(
     thread_id: str,
-    payload: ThreadRenameRequest,
+    payload: ThreadUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     thread_service: Annotated[ThreadService, Depends(get_thread_service)],
     db: Annotated[Session, Depends(get_db)],
 ) -> ThreadResponse:
-    """Persist a manually selected title for an existing conversation."""
+    """Update a project's title, description and/or learning goal."""
     if crud.get_thread(db, thread_id, user_id=current_user.id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found."
         )
-    try:
-        thread = thread_service.rename_thread(db, thread_id, payload.title)
-    except ThreadNotFoundError as error:
+    if not payload.has_changes():
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found."
-        ) from error
-    except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
-        ) from error
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide a title, description or learning goal to update.",
+        )
+
+    thread = None
+    if payload.title is not None:
+        try:
+            thread = thread_service.rename_thread(db, thread_id, payload.title)
+        except ThreadNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found."
+            ) from error
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+            ) from error
+
+    if payload.description is not None or payload.learning_goal is not None:
+        thread = crud.update_thread_details(
+            db,
+            thread_id=thread_id,
+            user_id=current_user.id,
+            description=" ".join(payload.description.split()) if payload.description is not None else None,
+            learning_goal=" ".join(payload.learning_goal.split()) if payload.learning_goal is not None else None,
+        )
+    elif thread is None:
+        thread = crud.get_thread(db, thread_id, user_id=current_user.id)
 
     return _thread_response(thread)
 

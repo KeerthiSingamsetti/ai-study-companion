@@ -23,19 +23,45 @@ export function loginUser(email, password) {
   return request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
 }
 
-export function registerUser(email, password, displayName, role = 'student') {
+export function registerUser(email, password, displayName) {
+  // Role is decided server-side (first account = admin); never sent by the client.
   return request('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password, display_name: displayName, role }),
+    body: JSON.stringify({ email, password, display_name: displayName }),
   })
 }
 
 export const getMe = () => request('/auth/me')
 export const getSpaces = () => request('/spaces')
-export const createSpace = (name) => request('/spaces', { method: 'POST', body: JSON.stringify({ name }) })
-export const createProject = (title, spaceId) => request('/threads', {
-  method: 'POST', body: JSON.stringify({ title, space_id: spaceId }),
-})
+
+/**
+ * A Space requires a name and description, with optional visual customization.
+ * `description` is what makes a Space dashboard meaningful, so it is sent (and
+ * encouraged in the UI) alongside the name.
+ */
+export const createSpace = (name, { description, accent, icon } = {}) =>
+  request('/spaces', {
+    method: 'POST',
+    body: JSON.stringify({ name, description: description || null, accent: accent || null, icon: icon || null }),
+  })
+
+export const updateSpace = (spaceId, patch) =>
+  request(`/spaces/${encodeURIComponent(spaceId)}`, { method: 'PATCH', body: JSON.stringify(patch) })
+
+/** A Project carries a name, description and learning goal. */
+export const createProject = (title, spaceId, { description, learningGoal } = {}) =>
+  request('/threads', {
+    method: 'POST',
+    body: JSON.stringify({
+      title,
+      space_id: spaceId,
+      description: description || null,
+      learning_goal: learningGoal || null,
+    }),
+  })
+
+export const updateProject = (projectId, patch) =>
+  request(`/threads/${encodeURIComponent(projectId)}`, { method: 'PATCH', body: JSON.stringify(patch) })
 
 
 export class ApiError extends Error {
@@ -147,6 +173,11 @@ export function getGlobalAnalytics() {
   return request('/analytics/global')
 }
 
+/** Space-level dashboard: projects, activity, progress and attention areas. */
+export function getSpaceAnalytics(spaceId) {
+  return request(`/analytics/spaces/${encodeURIComponent(spaceId)}`)
+}
+
 /* ── Admin operations console (admin role required by the API) ──── */
 export function getAdminOperations() {
   return request('/admin/operations')
@@ -154,6 +185,68 @@ export function getAdminOperations() {
 
 export function getAdminProduct() {
   return request('/admin/product')
+}
+
+/* ── Dedicated admin console (admin role required by the API) ────── */
+export function getAdminUsers(params = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString()
+  return request(`/admin/users${qs ? `?${qs}` : ''}`)
+}
+
+export function getAdminSpaces() {
+  return request('/admin/spaces')
+}
+
+export function getAdminProjects(params = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString()
+  return request(`/admin/projects${qs ? `?${qs}` : ''}`)
+}
+
+export function getAdminAiUsage(params = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString()
+  return request(`/admin/ai-usage${qs ? `?${qs}` : ''}`)
+}
+
+export function getAdminEvaluation() {
+  return request('/admin/evaluation')
+}
+
+export function getAdminJobs(params = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString()
+  return request(`/admin/jobs${qs ? `?${qs}` : ''}`)
+}
+
+export function getAdminHealth() {
+  return request('/admin/health')
+}
+
+/** Per-user learning journey (admin only): projects, activity, assessments, AI usage. */
+export function getAdminUser(userId) {
+  return request(`/admin/users/${encodeURIComponent(userId)}`)
+}
+
+/** Platform-wide activity feed with query filters (admin only). */
+export function getAdminActivity(filters = {}) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(filters)) {
+    if (value != null && value !== '') params.set(key, value)
+  }
+  const qs = params.toString()
+  return request(`/admin/activity${qs ? `?${qs}` : ''}`)
+}
+
+/** Distinct event types for the activity filter dropdown (admin only). */
+export function getAdminActivityTypes() {
+  return request('/admin/activity/types')
+}
+
+/**
+ * User / Project picker options for the activity feed (admin only).
+ * Pass a userId to narrow the Project options to that account.
+ */
+export function getAdminActivityFilters(params = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString()
+  return request(`/admin/activity/filters${qs ? `?${qs}` : ''}`)
 }
 
 /**

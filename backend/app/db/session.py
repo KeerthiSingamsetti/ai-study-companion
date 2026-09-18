@@ -66,6 +66,22 @@ def init_db() -> None:
                 connection.execute(text("ALTER TABLE threads ADD COLUMN user_id VARCHAR"))
             if "space_id" not in columns:
                 connection.execute(text("ALTER TABLE threads ADD COLUMN space_id VARCHAR"))
+            if "description" not in columns:
+                connection.execute(text("ALTER TABLE threads ADD COLUMN description TEXT"))
+            if "learning_goal" not in columns:
+                connection.execute(text("ALTER TABLE threads ADD COLUMN learning_goal TEXT"))
+            space_columns = {
+                row["name"]
+                for row in connection.execute(text("PRAGMA table_info(spaces)")).mappings()
+            }
+            if space_columns:
+                for column, definition in (
+                    ("description", "TEXT"),
+                    ("accent", "VARCHAR"),
+                    ("icon", "VARCHAR"),
+                ):
+                    if column not in space_columns:
+                        connection.execute(text(f"ALTER TABLE spaces ADD COLUMN {column} {definition}"))
             for table, column, definition in (
                 ("events", "processing_status", "VARCHAR DEFAULT 'processed'"),
                 ("events", "processed_at", "DATETIME"),

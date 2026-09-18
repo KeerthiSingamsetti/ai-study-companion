@@ -3,8 +3,10 @@ import { useWorkspace } from '../../context/WorkspaceContext'
 import { WORKSPACE_GROUPS, visibleWorkspaces } from '../../config/toolRegistry'
 
 export default function WorkspaceSection() {
-  const { activeWorkspace, setActiveWorkspace, userRole } = useWorkspace()
-  const workspaces = visibleWorkspaces(userRole)
+  const { activeWorkspace, setActiveWorkspace } = useWorkspace()
+  // Admins never render this sidebar — the gate routes them to the dedicated
+  // Admin Console — so no role filtering is needed here.
+  const workspaces = visibleWorkspaces()
 
   return (
     <nav className="mb-4 space-y-4">

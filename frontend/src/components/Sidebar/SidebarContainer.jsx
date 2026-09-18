@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Search, Shield, X } from 'lucide-react'
+import { Plus, Search, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import WorkspaceSection from './WorkspaceSection'
 import ChatSection from './ChatSection'
@@ -112,14 +112,6 @@ export default function SidebarContainer({
               <span className="block truncate text-xs font-semibold text-[var(--text-primary)]">{user.display_name}</span>
               <span className="block truncate text-[10px] text-[var(--text-muted)]">{user.email}</span>
             </span>
-            {user.role === 'admin' && (
-              <span
-                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[var(--accent)]"
-                title="Platform administrator"
-              >
-                <Shield className="size-2.5" /> Admin
-              </span>
-            )}
           </div>
         )}
       </aside>

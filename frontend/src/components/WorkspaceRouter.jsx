@@ -8,12 +8,14 @@ import ProgressWorkspace from './workspace/ProgressWorkspace'
 import PlannerWorkspace from './workspace/PlannerWorkspace'
 import WorkspaceErrorBoundary from './WorkspaceErrorBoundary'
 import HomeDashboard from './workspace/HomeDashboard'
+import SpaceDashboard from './workspace/SpaceDashboard'
 import ProjectDashboard from './workspace/ProjectDashboard'
+import AssessmentWorkspace from './workspace/AssessmentWorkspace'
 import GlobalAnalytics from './workspace/GlobalAnalytics'
-import AdminDashboard from './workspace/AdminDashboard'
 
 export default function WorkspaceRouter({
   user,
+  space,
   documents = [],
   loadDocuments,
   loadThreads,
@@ -28,6 +30,7 @@ export default function WorkspaceRouter({
     setActiveThreadId,
     quizData,
     quizPrefill,
+    assessmentPrefill,
     flashcardData,
     flashcardPrefill,
     planData,
@@ -60,6 +63,16 @@ export default function WorkspaceRouter({
         </WorkspaceErrorBoundary>
       </div>
 
+      <div className={activeWorkspace === 'space-dashboard' ? 'flex h-full w-full flex-col overflow-y-auto' : 'hidden'}>
+        <WorkspaceErrorBoundary activeTab="space-dashboard">
+          <SpaceDashboard
+            spaceId={space?.id}
+            onOpenProject={openProject}
+            onOpenWorkspace={setActiveWorkspace}
+          />
+        </WorkspaceErrorBoundary>
+      </div>
+
       <div className={activeWorkspace === 'project-dashboard' ? 'flex h-full w-full flex-col overflow-y-auto' : 'hidden'}>
         <WorkspaceErrorBoundary activeTab="project-dashboard">
           <ProjectDashboard
@@ -70,15 +83,21 @@ export default function WorkspaceRouter({
         </WorkspaceErrorBoundary>
       </div>
 
-      <div className={activeWorkspace === 'global-analytics' ? 'flex h-full w-full flex-col overflow-y-auto' : 'hidden'}>
-        <WorkspaceErrorBoundary activeTab="global-analytics">
-          <GlobalAnalytics />
+      {/* Open-ended assessment — the second practice mode alongside the quiz */}
+      <div className={activeWorkspace === 'assessment' ? 'flex h-full w-full flex-col overflow-y-auto' : 'hidden'}>
+        <WorkspaceErrorBoundary activeTab="assessment">
+          <AssessmentWorkspace
+            threadId={activeThreadId}
+            documents={documents}
+            prefill={assessmentPrefill}
+            onOpenWorkspace={setActiveWorkspace}
+          />
         </WorkspaceErrorBoundary>
       </div>
 
-      <div className={activeWorkspace === 'admin' ? 'flex h-full w-full flex-col overflow-y-auto' : 'hidden'}>
-        <WorkspaceErrorBoundary activeTab="admin">
-          <AdminDashboard />
+      <div className={activeWorkspace === 'global-analytics' ? 'flex h-full w-full flex-col overflow-y-auto' : 'hidden'}>
+        <WorkspaceErrorBoundary activeTab="global-analytics">
+          <GlobalAnalytics />
         </WorkspaceErrorBoundary>
       </div>
 

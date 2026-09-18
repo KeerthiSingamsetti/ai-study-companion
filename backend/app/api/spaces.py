@@ -15,13 +15,28 @@ router = APIRouter(prefix="/spaces", tags=["spaces"])
 
 
 class SpaceCreate(BaseModel):
+    """A Space requires a name and description, with optional visual customization."""
+
     name: str
+    description: str | None = None
+    accent: str | None = None
+    icon: str | None = None
+
+
+class SpaceUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    accent: str | None = None
+    icon: str | None = None
 
 
 class SpaceResponse(BaseModel):
     id: str
     user_id: str
     name: str
+    description: str | None = None
+    accent: str | None = None
+    icon: str | None = None
 
     class Config:
         from_attributes = True
@@ -34,8 +49,43 @@ def create_space(
     db: Annotated[Session, Depends(get_db)],
 ) -> SpaceResponse:
     """Create a new Space for the authenticated user."""
+    name = " ".join(space_in.name.split())
+    if not name:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Space name cannot be blank.")
     space_id = str(uuid.uuid4())
-    space = crud.create_space(db, space_id=space_id, user_id=current_user.id, name=space_in.name)
+    space = crud.create_space(
+        db,
+        space_id=space_id,
+        user_id=current_user.id,
+        name=name,
+        description=" ".join((space_in.description or "").split()) or None,
+        accent=space_in.accent,
+        icon=space_in.icon,
+    )
+    return SpaceResponse.model_validate(space)
+
+
+@router.patch("/{space_id}", response_model=SpaceResponse)
+def update_space(
+    space_id: str,
+    payload: SpaceUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> SpaceResponse:
+    """Update a Space's name, description or visual customization."""
+    if crud.get_space(db, space_id, user_id=current_user.id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Space not found.")
+    if payload.name is None and payload.description is None and payload.accent is None and payload.icon is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Nothing to update.")
+    space = crud.update_space(
+        db,
+        space_id=space_id,
+        user_id=current_user.id,
+        name=" ".join(payload.name.split()) if payload.name is not None else None,
+        description=" ".join(payload.description.split()) if payload.description is not None else None,
+        accent=payload.accent,
+        icon=payload.icon,
+    )
     return SpaceResponse.model_validate(space)
 
 

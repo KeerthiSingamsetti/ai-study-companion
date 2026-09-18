@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { regenerateQuiz } from '../../lib/quizApi'
-import { reportQuizResult } from '../../lib/progressApi'
+import { reportQuizEvidence } from '../../lib/learningApi'
 import IndexTab from '../common/IndexTab'
 import QuizSetupForm from './QuizSetupForm'
 
@@ -107,10 +107,12 @@ export default function QuizWorkspace({
     setReportedQuizData(activeQuiz)
   }, [activeQuiz])
 
-  // Automatically report quiz score once all questions are answered
+  // Once every question is answered, the session becomes concept-mastery
+  // evidence. This is what turns a quiz into movement on the dashboards.
   useEffect(() => {
     if (
       !activeQuiz ||
+      !threadId ||
       reportedQuizData !== activeQuiz ||
       !hasQuestions ||
       answeredCount !== questions.length ||
@@ -118,15 +120,18 @@ export default function QuizWorkspace({
     ) return
 
     hasReportedRef.current = true
-    void reportQuizResult(
-      activeQuiz.document_id,
-      activeQuiz.topic,
-      questions.map((question, index) => ({
+    void reportQuizEvidence({
+      projectId: threadId,
+      documentId: activeQuiz.document_id,
+      topic: activeQuiz.topic,
+      concept: activeQuiz.concept || activeQuiz.topic,
+      difficulty: activeQuiz.difficulty ?? 'medium',
+      results: questions.map((question, index) => ({
         question: question.question,
         correct: userAnswers[index] === question.correct_index,
       })),
-    ).catch(() => {})
-  }, [answeredCount, hasQuestions, questions, activeQuiz, reportedQuizData, userAnswers])
+    }).catch(() => {})
+  }, [answeredCount, hasQuestions, questions, activeQuiz, reportedQuizData, userAnswers, threadId])
 
   async function handleGenerateForm({ documentId, topic, numQuestions, difficulty }) {
     setIsGenerating(true)

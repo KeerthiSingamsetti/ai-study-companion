@@ -20,13 +20,20 @@ from app.agent.graph import create_graph
 from app.agent.nodes.chatbot import _tools_for_turn
 from app.config import DEFAULT_USER_ID
 from app.db import crud
-from app.db.models import Base, MemoryFactType
+from app.db.models import Base, MemoryFactType, User
 from app.db.session import get_db
 from app.schemas.chat import ChatRequest
 from app.tools import memory_tool
 from app.services.chat_service import ChatService
 from app.services.thread_service import ThreadService
 from types import SimpleNamespace
+
+
+def _auth_headers_for(user_id: str, role: str = "student") -> dict[str, str]:
+    """Bearer headers for a user that must exist in the overridden DB."""
+    from app.auth.service import create_access_token
+
+    return {"Authorization": f"Bearer {create_access_token(user_id=user_id, role=role)}"}
 
 class ToolCapableFakeChatModel(FakeMessagesListChatModel):
     """Fake model that preserves LangGraph's real ToolNode execution path."""
@@ -45,7 +52,24 @@ def _session_factory() -> sessionmaker[Session]:
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 
-def _progress_client(session_factory: sessionmaker[Session]) -> TestClient:
+def _progress_client(
+    session_factory: sessionmaker[Session],
+    user_id: str = "progress-user",
+) -> TestClient:
+    """Isolated app with a seeded, token-backed user."""
+    with session_factory() as db:
+        if db.get(User, user_id) is None:
+            db.add(
+                User(
+                    id=user_id,
+                    email=f"{user_id}@example.com",
+                    hashed_password="not-a-login",
+                    display_name=user_id.replace("-", " ").title(),
+                    role="student",
+                )
+            )
+            db.commit()
+
     app = FastAPI()
     app.include_router(progress_router)
 
@@ -57,6 +81,9 @@ def _progress_client(session_factory: sessionmaker[Session]) -> TestClient:
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    # No auth override: the real get_current_user dependency decodes the
+    # bearer token against the overridden session, so the header is
+    # genuinely exercised in every request below.
     return TestClient(app)
 
 
@@ -65,6 +92,7 @@ def test_quiz_result_persists_attempt_and_derives_weak_topic_below_sixty_percent
     session_factory = _session_factory()
     response = _progress_client(session_factory).post(
         "/progress/quiz-result",
+        headers=_auth_headers_for("progress-user"),
         json={
             "document_id": "document-1",
             "topic": "linear regression",
@@ -77,9 +105,9 @@ def test_quiz_result_persists_attempt_and_derives_weak_topic_below_sixty_percent
 
     assert response.status_code == 204
     with session_factory() as db:
-        attempts = crud.get_quiz_attempts(db, DEFAULT_USER_ID)
+        attempts = crud.get_quiz_attempts(db, "progress-user")
         weak_topics = crud.get_user_memory(
-            db, DEFAULT_USER_ID, fact_type=MemoryFactType.WEAK_TOPIC
+            db, "progress-user", fact_type=MemoryFactType.WEAK_TOPIC
         )
 
     assert [(attempt.topic, attempt.correct_count, attempt.total_questions) for attempt in attempts] == [
@@ -90,11 +118,61 @@ def test_quiz_result_persists_attempt_and_derives_weak_topic_below_sixty_percent
     ]
 
 
+def test_progress_results_are_scoped_to_the_reporting_user() -> None:
+    """One student's quiz never appears in another student's records."""
+    session_factory = _session_factory()
+    _progress_client(session_factory, user_id="student-a").post(
+        "/progress/quiz-result",
+        headers=_auth_headers_for("student-a"),
+        json={
+            "document_id": "document-1",
+            "topic": "linear regression",
+            "results": [
+                {"question": f"Question {index}", "correct": index < 3}
+                for index in range(7)
+            ],
+        },
+    )
+
+    with session_factory() as db:
+        assert len(crud.get_quiz_attempts(db, "student-a")) == 1
+        assert crud.get_quiz_attempts(db, "student-b") == []
+        assert crud.get_user_memory(
+            db, "student-b", fact_type=MemoryFactType.WEAK_TOPIC
+        ) == []
+
+
+def test_progress_routes_reject_anonymous_callers() -> None:
+    """No /progress route answers without a valid token (data isolation)."""
+    session_factory = _session_factory()
+    client = _progress_client(session_factory)
+
+    assert client.get("/progress").status_code == 401
+    assert (
+        client.post(
+            "/progress/quiz-result",
+            json={"document_id": "d", "topic": "t", "results": [{"question": "q", "correct": True}]},
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/progress/flashcard-result",
+            json={"document_id": "d", "topic": "t", "cards": []},
+        ).status_code
+        == 401
+    )
+
+    with session_factory() as db:
+        assert crud.get_quiz_attempts(db, "progress-user") == []
+
+
 def test_passing_quiz_is_logged_without_a_weak_topic_fact() -> None:
     """A score at or above 60% never becomes a weak-topic memory."""
     session_factory = _session_factory()
     response = _progress_client(session_factory).post(
         "/progress/quiz-result",
+        headers=_auth_headers_for("progress-user"),
         json={
             "document_id": "document-2",
             "topic": "probability",
@@ -107,9 +185,9 @@ def test_passing_quiz_is_logged_without_a_weak_topic_fact() -> None:
 
     assert response.status_code == 204
     with session_factory() as db:
-        attempts = crud.get_quiz_attempts(db, DEFAULT_USER_ID)
+        attempts = crud.get_quiz_attempts(db, "progress-user")
         weak_topics = crud.get_user_memory(
-            db, DEFAULT_USER_ID, fact_type=MemoryFactType.WEAK_TOPIC
+            db, "progress-user", fact_type=MemoryFactType.WEAK_TOPIC
         )
 
     assert len(attempts) == 1
@@ -283,6 +361,7 @@ def test_flashcard_learning_tag_creates_weak_topic_fact() -> None:
     session_factory = _session_factory()
     response = _progress_client(session_factory).post(
         "/progress/flashcard-result",
+        headers=_auth_headers_for("progress-user"),
         json={
             "document_id": "document-5",
             "topic": "decision trees",
@@ -296,7 +375,7 @@ def test_flashcard_learning_tag_creates_weak_topic_fact() -> None:
     assert response.status_code == 204
     with session_factory() as db:
         weak_topics = crud.get_user_memory(
-            db, DEFAULT_USER_ID, fact_type=MemoryFactType.WEAK_TOPIC
+            db, "progress-user", fact_type=MemoryFactType.WEAK_TOPIC
         )
     assert [fact.detail for fact in weak_topics] == [
         "marked 1 cards as still learning on decision trees"

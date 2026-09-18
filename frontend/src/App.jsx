@@ -158,7 +158,7 @@ function AppContent({ user, space, project, onProject, onSpace, switchProject, l
   )
 
   return (
-    <WorkspaceProvider value={{ activeThreadId, setActiveThreadId, userRole: user?.role }}>
+    <WorkspaceProvider value={{ activeThreadId, setActiveThreadId }}>
       <main className={`h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)] ${isResizingSidebar ? 'cursor-col-resize select-none' : ''}`}>
         <div className="flex h-full w-full overflow-hidden">
           {/* Unified ChatGPT/Claude-style Left Sidebar */}
@@ -205,6 +205,7 @@ function AppContent({ user, space, project, onProject, onSpace, switchProject, l
             {/* Router Rendering Single Workspace via Visibility Toggling */}
             <WorkspaceRouter
               user={user}
+              space={space}
               documents={documents}
               loadDocuments={loadDocuments}
               loadThreads={loadThreads}

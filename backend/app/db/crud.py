@@ -10,6 +10,8 @@ from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.config import DEFAULT_USER_ID
+
 from app.db.models import (
     Concept,
     ConceptMastery,
@@ -20,6 +22,7 @@ from app.db.models import (
     RetrievalTrace,
     MemoryFactType,
     QuizAttempt,
+    Recommendation,
     Space,
     StudyLog,
     Thread,
@@ -42,6 +45,18 @@ EVENT_TYPES: frozenset[str] = frozenset({
 # ---------------------------------------------------------------------------
 # Users
 # ---------------------------------------------------------------------------
+
+def has_real_registered_user(db: Session) -> bool:
+    """True once any real account exists (the seeded legacy 'default_user' —
+    which has an unusable password hash and cannot log in — does not count).
+    Used to grant admin to the first genuine registration."""
+    return (
+        db.query(User)
+        .filter(User.id != DEFAULT_USER_ID)
+        .first()
+        is not None
+    )
+
 
 def create_user(
     db: Session,
@@ -86,15 +101,54 @@ def list_users(db: Session, limit: int = 100, offset: int = 0) -> list[User]:
 # Spaces
 # ---------------------------------------------------------------------------
 
-def create_space(db: Session, *, space_id: str, user_id: str, name: str) -> Space:
-    """Create a new Space container."""
+def create_space(
+    db: Session,
+    *,
+    space_id: str,
+    user_id: str,
+    name: str,
+    description: Optional[str] = None,
+    accent: Optional[str] = None,
+    icon: Optional[str] = None,
+) -> Space:
+    """Create a new Space container with optional description and customization."""
     space = Space(
         id=space_id,
         user_id=user_id,
         name=name,
+        description=description,
+        accent=accent,
+        icon=icon,
         created_at=datetime.now(timezone.utc),
     )
     db.add(space)
+    db.commit()
+    db.refresh(space)
+    return space
+
+
+def update_space(
+    db: Session,
+    *,
+    space_id: str,
+    user_id: str,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    accent: Optional[str] = None,
+    icon: Optional[str] = None,
+) -> Optional[Space]:
+    """Patch an owned Space without touching unspecified fields."""
+    space = get_space(db, space_id, user_id=user_id)
+    if space is None:
+        return None
+    if name is not None:
+        space.name = name
+    if description is not None:
+        space.description = description
+    if accent is not None:
+        space.accent = accent
+    if icon is not None:
+        space.icon = icon
     db.commit()
     db.refresh(space)
     return space
@@ -139,6 +193,8 @@ def create_thread(
     title: str,
     user_id: Optional[str] = None,
     space_id: Optional[str] = None,
+    description: Optional[str] = None,
+    learning_goal: Optional[str] = None,
 ) -> Thread:
     """Insert a new Thread (Project) row."""
     thread = Thread(
@@ -146,10 +202,34 @@ def create_thread(
         title=title,
         user_id=user_id,
         space_id=space_id,
+        description=description,
+        learning_goal=learning_goal,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
     db.add(thread)
+    db.commit()
+    db.refresh(thread)
+    return thread
+
+
+def update_thread_details(
+    db: Session,
+    *,
+    thread_id: str,
+    user_id: str,
+    description: Optional[str] = None,
+    learning_goal: Optional[str] = None,
+) -> Optional[Thread]:
+    """Patch the PRD's project description / learning goal fields."""
+    thread = get_thread(db, thread_id, user_id=user_id)
+    if thread is None:
+        return None
+    if description is not None:
+        thread.description = description
+    if learning_goal is not None:
+        thread.learning_goal = learning_goal
+    thread.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(thread)
     return thread
@@ -394,6 +474,64 @@ def list_events_for_user(db: Session, user_id: str, limit: int = 50, offset: int
         .limit(limit)
         .all()
     )
+
+
+def create_recommendation(
+    db: Session,
+    *,
+    user_id: str,
+    project_id: str,
+    trigger: str,
+    recommendation: str,
+    concept_id: Optional[str] = None,
+) -> Recommendation:
+    """Persist one actionable next step so it survives across sessions."""
+    row = Recommendation(
+        user_id=user_id,
+        project_id=project_id,
+        concept_id=concept_id,
+        trigger=trigger,
+        recommendation=recommendation,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def list_active_recommendations_for_project(db: Session, user_id: str, project_id: str) -> list[Recommendation]:
+    """Return non-dismissed recommendations, newest first."""
+    return (
+        db.query(Recommendation)
+        .filter(
+            Recommendation.user_id == user_id,
+            Recommendation.project_id == project_id,
+            Recommendation.is_dismissed.is_(False),
+        )
+        .order_by(Recommendation.created_at.desc())
+        .all()
+    )
+
+
+def get_recommendation(db: Session, recommendation_id: int, user_id: str) -> Optional[Recommendation]:
+    """Fetch one owned recommendation."""
+    return (
+        db.query(Recommendation)
+        .filter(Recommendation.id == recommendation_id, Recommendation.user_id == user_id)
+        .first()
+    )
+
+
+def dismiss_recommendation(db: Session, recommendation_id: int, user_id: str) -> Optional[Recommendation]:
+    """Mark a recommendation dismissed so it stops resurfacing."""
+    row = get_recommendation(db, recommendation_id, user_id)
+    if row is None:
+        return None
+    row.is_dismissed = True
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 def list_events_for_project(db: Session, project_id: str, limit: int = 50, offset: int = 0) -> list[Event]:

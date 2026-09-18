@@ -1,4 +1,3 @@
-import React from 'react'
 
 /**
  * Signature pill-shaped "index tab" component anchored to top edges of content cards.

@@ -70,6 +70,10 @@ class Space(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    # Optional description and visual customization (accent colour + icon).
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    accent: Mapped[str | None] = mapped_column(String, nullable=True)
+    icon: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -98,6 +102,9 @@ class Thread(Base):
     user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, default=DEFAULT_USER_ID)
     space_id: Mapped[str | None] = mapped_column(String, ForeignKey("spaces.id", ondelete="SET NULL"), nullable=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
+    # A Project is the core learning workspace: what it covers and where it is heading.
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    learning_goal: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

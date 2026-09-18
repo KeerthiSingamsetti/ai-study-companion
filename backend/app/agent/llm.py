@@ -12,6 +12,18 @@ from langchain_groq import ChatGroq
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
+def resolve_model_name() -> str:
+    """The configured chat model identifier, for observability records.
+
+    AI-call logs must name the model that actually served the traffic, so the
+    value is read from the same source as the client itself. ``os.getenv``
+    alone returns nothing until a client has been constructed, because the
+    backend's ``.env`` is loaded lazily by the factories below.
+    """
+    load_dotenv(_BACKEND_DIR / ".env", override=True)
+    return os.getenv("GROQ_MODEL") or "unattributed"
+
+
 def create_llm() -> BaseChatModel:
     """Create the configured Groq chat model.
 

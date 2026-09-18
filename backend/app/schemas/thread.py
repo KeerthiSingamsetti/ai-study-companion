@@ -7,16 +7,32 @@ from app.schemas.chat import DocumentCitation
 
 
 class ThreadCreateRequest(BaseModel):
-    """Create a project inside an explicitly selected Space."""
+    """Create a project inside an explicitly selected Space.
+
+    A Project is the core learning workspace: the name says what it is, the
+    description says what it covers, and the learning goal says where the
+    learner is heading.
+    """
 
     title: str = Field(min_length=1, max_length=200)
     space_id: str = Field(min_length=1)
+    description: str | None = Field(default=None, max_length=2000)
+    learning_goal: str | None = Field(default=None, max_length=2000)
 
 
-class ThreadRenameRequest(BaseModel):
-    """User-selected replacement title for a conversation thread."""
+class ThreadUpdateRequest(BaseModel):
+    """Partial update for a project's title, description or learning goal."""
 
-    title: str = Field(min_length=1, max_length=200)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    learning_goal: str | None = Field(default=None, max_length=2000)
+
+    def has_changes(self) -> bool:
+        return any(value is not None for value in (self.title, self.description, self.learning_goal))
+
+
+# Backwards-compatible alias for callers that only rename.
+ThreadRenameRequest = ThreadUpdateRequest
 
 
 class ThreadResponse(BaseModel):
@@ -25,6 +41,8 @@ class ThreadResponse(BaseModel):
     id: str
     title: str
     space_id: str | None = None
+    description: str | None = None
+    learning_goal: str | None = None
     created_at: datetime
     updated_at: datetime
 

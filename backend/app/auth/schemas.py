@@ -1,15 +1,17 @@
 """Pydantic schemas for authentication requests and responses."""
 
 from datetime import datetime
-from typing import Literal
 from pydantic import BaseModel, EmailStr
 
 
+# NOTE: no role field here on purpose. Role is never client-selectable —
+# the first account registered on a fresh database becomes the platform
+# administrator (see app/auth/router.py), and every promotion after that
+# is a direct database update.
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
     display_name: str
-    role: Literal["student", "admin"] = "student"
 
 
 class UserLogin(BaseModel):
