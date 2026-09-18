@@ -10,6 +10,8 @@ python-multipart>=0.0.9
 
 # --- Database ---
 sqlalchemy>=2.0.0
+# PostgreSQL driver, used when DATABASE_URL points at hosted Postgres (Render/Supabase).
+psycopg2-binary>=2.9.9
 
 # --- LLM & Orchestration ---
 langchain-groq>=0.1.5

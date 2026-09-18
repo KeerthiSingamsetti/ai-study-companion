@@ -8,6 +8,7 @@ from pathlib import Path
 import os
 from collections.abc import Generator
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -16,26 +17,63 @@ from app.db.models import Base
 
 BASE_DIR = Path(__file__).resolve().parents[2]   # backend/
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    f"sqlite:///{BASE_DIR / 'chatbot.db'}"
-)
+# Always load backend/.env before computing DATABASE_URL, so this module works
+# when imported standalone (scripts, tests) and not just via app.main.
+# override=False keeps real environment variables (deployment) authoritative.
+load_dotenv(BASE_DIR / ".env", override=False)
+
+def _resolve_database_url(raw: str | None = None) -> str:
+    """Resolve the SQLAlchemy database URL.
+
+    ``DATABASE_URL`` wins when set (deployment); otherwise the local SQLite file
+    is used, so development is unchanged. SQLAlchemy 2.x rejects the
+    ``postgres://`` scheme that some hosts still emit, so it is normalised to
+    ``postgresql://``.
+    """
+    url = (
+        raw if raw is not None else os.getenv("DATABASE_URL")
+    ) or f"sqlite:///{BASE_DIR / 'chatbot.db'}"
+    url = url.strip()
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    return url
+
+
+def _is_sqlite_url(url: str) -> bool:
+    """Whether *url* points at SQLite (so SQLite-only options should apply)."""
+    return url.startswith("sqlite")
+
+
+DATABASE_URL = _resolve_database_url()
 
 _connect_args: dict = {}
-if DATABASE_URL.startswith("sqlite"):
+_engine_options: dict = {}
+if _is_sqlite_url(DATABASE_URL):
+    # SQLite needs this to be shared across FastAPI's threadpool; passing it to
+    # Postgres raises an error, so it is applied only for SQLite.
     _connect_args["check_same_thread"] = False
+else:
+    # Hosted Postgres (Supabase, Render) drops idle connections. Recycle and
+    # pre-ping so a pooled connection is never reused after the server closed it.
+    _engine_options["pool_pre_ping"] = True
+    _engine_options["pool_recycle"] = 300
 
 engine: Engine = create_engine(
     DATABASE_URL,
     connect_args=_connect_args,
     echo=False,
+    **_engine_options,
 )
 
 
 @event.listens_for(engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record) -> None:  # type: ignore[type-arg]
-    """Enable Write-Ahead Logging on every new SQLite connection."""
-    if DATABASE_URL.startswith("sqlite"):
+    """Enable Write-Ahead Logging on every new SQLite connection.
+
+    SQLite-only. Postgres enforces foreign keys and needs no journal pragma, so
+    this listener is a no-op for a Postgres URL.
+    """
+    if _is_sqlite_url(DATABASE_URL):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL;")
         cursor.execute("PRAGMA foreign_keys=ON;")
@@ -53,7 +91,7 @@ SessionLocal: sessionmaker[Session] = sessionmaker(
 def init_db() -> None:
     """Create all tables defined in the ORM models if they do not already exist."""
     Base.metadata.create_all(bind=engine)
-    if DATABASE_URL.startswith("sqlite"):
+    if _is_sqlite_url(DATABASE_URL):
         with engine.begin() as connection:
             columns = {
                 row["name"]

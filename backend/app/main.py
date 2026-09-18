@@ -5,9 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Ensure .env is loaded before any LangChain/LangGraph modules are imported
+# Ensure .env is loaded before any LangChain/LangGraph modules are imported.
+# Existing environment variables win (override=False): the platform owns config
+# in deployment, and the test suite must be able to pin DATABASE_URL to its
+# disposable database even when a developer's .env points at a hosted Postgres.
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(_BACKEND_DIR / ".env", override=True)
+load_dotenv(_BACKEND_DIR / ".env", override=False)
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
