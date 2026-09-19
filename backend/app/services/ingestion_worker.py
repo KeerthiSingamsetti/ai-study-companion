@@ -1,27 +1,28 @@
-"""Background PDF ingestion worker.
+"""Background PDF ingestion worker with durable, database-backed uploads.
 
-The upload endpoint used to run the whole pipeline (parse → chunk → Cohere
-embeddings → FAISS build) inline on the request thread. A large PDF took many
-minutes, the HTTP connection sat idle, and deployment proxies killed it — the
-user saw a generic "request could not be completed" error after a long
-spinner.
+The upload endpoint runs the heavy pipeline (parse → chunk → Cohere
+embeddings → FAISS build) on a single background daemon thread instead of the
+request thread, so uploads return immediately and deployment proxy timeouts
+can no longer kill an in-flight ingestion.
 
-This module moves that pipeline into a single background daemon thread:
+Durability model:
 
-* Upload bytes are persisted to ``backend/upload_media/`` (and renamed to the
-  document id) BEFORE the HTTP request returns, so a crash or redeploy right
-  after upload never loses the file.
-* Jobs are queued in memory and persisted in the ``ingestion_jobs`` table
-  (``queued → processing → ready/failed``). ``recover_pending_ingestion_jobs``
-  re-enqueues anything left ``queued`` by a restart.
-* ``retry`` re-runs a failed job from the persisted upload bytes — no re-upload
-  needed.
+* Upload bytes are stored in the ``document_upload_media`` table (same
+  database as the job rows) BEFORE the HTTP request returns. Deployment disks
+  are ephemeral — Render wipes them on every deploy/restart, which used to
+  destroy pending uploads mid-flight — so the bytes must not live on disk.
+* Jobs are queued in memory and persisted in ``ingestion_jobs``
+  (``queued → processing → ready/failed``).
+* ``recover_pending_ingestion_jobs`` runs at startup: never-started jobs are
+  re-enqueued; jobs that died mid-flight are marked failed (retryable) rather
+  than auto-resumed, which crash-looped small containers.
+* ``sweep_stalled_jobs`` (called by the jobs listing endpoint) fails jobs
+  stuck in ``processing`` that no live worker is running.
 
-Embeddings are injected at first use (usually the process-scoped
-``LazyEmbeddings`` proxy from ``app.rag.embeddings``) so tests can substitute a
-local model. Worker threads never touch the request's SQLAlchemy session; they
-open short-lived sessions via ``SessionLocal`` per operation (SQLite WAL keeps
-that safe).
+Embeddings are injected (usually the process-scoped ``LazyEmbeddings`` proxy)
+so tests can substitute a local model. Worker threads never touch the
+request's SQLAlchemy session; they open short-lived sessions via
+``SessionLocal`` per operation (SQLite WAL keeps that safe).
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ import logging
 import queue
 import threading
 import uuid
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from langchain_core.embeddings import Embeddings
@@ -40,53 +41,34 @@ from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-_BACKEND_DIR = Path(__file__).resolve().parents[2]
-_MEDIA_DIR = _BACKEND_DIR / "upload_media"
-
 
 class UploadMediaStore:
-    """Persist raw upload bytes on local disk, keyed by document id.
+    """Persist raw upload bytes durably in the database.
 
-    ``save`` writes under a temporary name and returns that path so the
-    ingestion endpoint can hand a stable file to the worker; ``relocate`` is
-    called once the document id is known and renames the file so retries and
-    restart recovery can always find the bytes again.
+    Keyed by document id; rows are deleted after successful ingestion or when
+    the document is deleted. Idempotent upsert, safe to call from any thread.
     """
 
-    def __init__(self, base_dir: Path = _MEDIA_DIR) -> None:
-        self._base_dir = base_dir
-        self._lock = threading.Lock()
-
-    def _document_path(self, document_id: str) -> Path:
-        return self._base_dir / f"{document_id}.pdf"
-
-    def _unique_tmp_path(self) -> Path:
-        return self._base_dir / f".tmp-{uuid.uuid4().hex}.pdf"
-
-    def _ensure_dir(self) -> None:
-        with self._lock:
-            self._base_dir.mkdir(parents=True, exist_ok=True)
-
-    def save(self, document_id: str, content: bytes) -> Path:
-        """Write upload bytes to disk and return the final document-keyed path."""
-        self._ensure_dir()
-        final_path = self._document_path(document_id)
-        tmp_path = self._unique_tmp_path()
+    def save(self, document_id: str, content: bytes) -> None:
+        db = SessionLocal()
         try:
-            tmp_path.write_bytes(content)
-            tmp_path.replace(final_path)
+            crud.save_document_upload_media(db, document_id=document_id, content=content)
         finally:
-            tmp_path.unlink(missing_ok=True)
-        return final_path
+            db.close()
 
-    def resolve(self, document_id: str) -> Optional[Path]:
-        """Return the persisted upload path for a document, or None."""
-        path = self._document_path(document_id)
-        return path if path.is_file() else None
+    def resolve_bytes(self, document_id: str) -> Optional[bytes]:
+        db = SessionLocal()
+        try:
+            return crud.get_document_upload_media(db, document_id)
+        finally:
+            db.close()
 
     def purge(self, document_id: str) -> None:
-        """Remove the persisted upload (best-effort) when a document is deleted."""
-        self._document_path(document_id).unlink(missing_ok=True)
+        db = SessionLocal()
+        try:
+            crud.delete_document_upload_media(db, document_id)
+        finally:
+            db.close()
 
 
 media_store = UploadMediaStore()
@@ -129,14 +111,15 @@ class IngestionWorker:
     def __init__(self, embeddings: Any, media_store: Optional[UploadMediaStore] = None) -> None:
         self._embeddings = embeddings
         self.media_store = media_store if media_store is not None else UploadMediaStore()
-        self._queue: "queue.Queue[tuple[str, Path]]" = queue.Queue()
+        self._queue: "queue.Queue[str]" = queue.Queue()
         self._enqueued: set[str] = set()
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._thread_lock = threading.Lock()
         # In-memory live progress per document (resets on restart):
         # {"phase": "parsing"} or {"phase": "embedding", "total_chunks": int,
-        # "processed_chunks": int}. Present only while a job is active.
+        # "processed_chunks": int}. Present only while a job is active — its
+        # absence is how the stall sweep knows nobody is working on a job.
         self._progress: dict[str, dict[str, Any]] = {}
         self._progress_lock = threading.Lock()
 
@@ -153,13 +136,13 @@ class IngestionWorker:
             )
             self._thread.start()
 
-    def enqueue(self, document_id: str, media_path: Path) -> bool:
+    def enqueue(self, document_id: str) -> bool:
         """Queue one document for ingestion; False if already pending."""
         with self._lock:
             if document_id in self._enqueued:
                 return False
             self._enqueued.add(document_id)
-        self._queue.put((document_id, media_path))
+        self._queue.put(document_id)
         self._ensure_thread()
         return True
 
@@ -182,9 +165,9 @@ class IngestionWorker:
 
     def _run(self) -> None:
         while True:
-            document_id, media_path = self._queue.get()
+            document_id = self._queue.get()
             try:
-                self._process_job(document_id, media_path)
+                self._process_job(document_id)
             except Exception:  # pragma: no cover - defensive
                 logger.exception("Unexpected ingestion worker crash for document %s", document_id)
             finally:
@@ -192,7 +175,7 @@ class IngestionWorker:
                     self._enqueued.discard(document_id)
                 self._queue.task_done()
 
-    def _process_job(self, document_id: str, media_path: Path) -> None:
+    def _process_job(self, document_id: str) -> None:
         db = SessionLocal()
         try:
             document = crud.get_document(db, document_id)
@@ -215,7 +198,7 @@ class IngestionWorker:
             with self._progress_lock:
                 self._progress[document_id] = {"phase": "parsing"}
             try:
-                counts = self._process_document(document_id, media_path)
+                counts = self._process_document(document_id)
             except Exception as error:
                 logger.exception("Ingestion failed for document %s", document_id)
                 db.rollback()
@@ -236,6 +219,9 @@ class IngestionWorker:
                 page_count=counts["page_count"], chunk_count=counts["chunk_count"],
             )
             crud.update_ingestion_job_status(db, job.id, "ready", clear_error=True)
+            # The durable copy is kept (until the document is deleted) so any
+            # later retry — index corruption, redeploy, manual re-run — can
+            # always rebuild without asking the user to upload again.
             crud.log_event(
                 db, event_key=f"material:{document_id}:processed",
                 user_id=user_id or "default_user",
@@ -253,7 +239,7 @@ class IngestionWorker:
                 self._progress.pop(document_id, None)
             db.close()
 
-    def _process_document(self, document_id: str, media_path: Path) -> dict[str, int]:
+    def _process_document(self, document_id: str) -> dict[str, int]:
         """Parse, chunk, embed, and persist the index for one uploaded PDF."""
         from app.rag.exceptions import PDFIngestError
         from app.rag.ingest import load_and_chunk_pdf
@@ -264,15 +250,18 @@ class IngestionWorker:
             document = crud.get_document(db, document_id)
             if document is None:
                 raise PDFIngestError("Document was deleted before ingestion completed.")
-            thread_id = document.thread_id
             save_path = document.vectorstore_path
-            # Chunk metadata/citations must carry the user's filename, not the
-            # internal media name ({document_id}.pdf).
+            # Chunk metadata/citations must carry the user's filename.
             original_filename = document.filename
         finally:
             db.close()
 
-        content = media_path.read_bytes()
+        content = self.media_store.resolve_bytes(document_id)
+        if content is None:
+            raise PDFIngestError(
+                "The stored upload bytes are missing; upload the PDF again."
+            )
+
         chunks, metadata = load_and_chunk_pdf(content, filename=original_filename)
         with self._progress_lock:
             self._progress[document_id] = {
@@ -347,14 +336,13 @@ def recover_pending_ingestion_jobs() -> int:
     db = SessionLocal()
     try:
         worker = get_ingestion_worker()
-        media_store = worker.media_store
+        store = worker.media_store
         # Jobs that never started are safe to auto-resume.
         for job in crud.list_ingestion_jobs_by_status(db, "queued"):
             document = crud.get_document(db, job.document_id)
             if document is None:
                 continue
-            media_path = media_store.resolve(document.id)
-            if media_path is not None and worker.enqueue(document.id, media_path):
+            if store.resolve_bytes(document.id) is not None and worker.enqueue(document.id):
                 requeued += 1
         # 'processing' rows are stale after a restart — the process died
         # mid-job. Fail them explicitly; the user retries on a stable service.
@@ -362,22 +350,21 @@ def recover_pending_ingestion_jobs() -> int:
             document = crud.get_document(db, job.document_id)
             if document is None:
                 continue
-            if media_store.resolve(document.id) is not None:
+            if store.resolve_bytes(document.id) is not None:
                 message = "Ingestion was interrupted by a restart. Press Retry to resume it."
             else:
                 message = "Ingestion was interrupted by a restart and the upload file is gone. Upload the PDF again."
             crud.update_ingestion_job_status(db, job.id, "failed", error_msg=message)
             failed_stale += 1
         for document in crud.list_documents_missing_ingestion_jobs(db):
-            media_path = media_store.resolve(document.id)
-            if media_path is None:
+            if store.resolve_bytes(document.id) is None:
                 continue
             user_id = document.thread.user_id if document.thread is not None else None
             crud.create_ingestion_job(
                 db, job_id=str(uuid.uuid4()), document_id=document.id,
                 user_id=user_id or DEFAULT_USER_ID, project_id=document.thread_id,
             )
-            worker.enqueue(document.id, media_path)
+            worker.enqueue(document.id)
             requeued += 1
     finally:
         db.close()
@@ -386,3 +373,39 @@ def recover_pending_ingestion_jobs() -> int:
     if failed_stale:
         logger.info("Marked %d interrupted ingestion job(s) as failed (retryable).", failed_stale)
     return requeued
+
+
+def sweep_stalled_jobs(max_idle_seconds: float = 180.0) -> int:
+    """Fail 'processing' jobs that no live worker thread is actually running.
+
+    Covers the case boot recovery misses: the worker died mid-job WITHOUT a
+    process restart, so the row says 'processing' but nobody is working on it
+    and the UI spins forever. A job is only swept when (a) the in-process
+    worker has no live progress entry for it, and (b) its row has not been
+    touched for at least ``max_idle_seconds`` — an actively running job always
+    has a progress entry, so this can never cancel real work.
+    """
+    failed = 0
+    db = SessionLocal()
+    try:
+        worker = get_ingestion_worker()
+        now = datetime.now(timezone.utc)
+        for job in crud.list_ingestion_jobs_by_status(db, "processing"):
+            if worker.progress(job.document_id) is not None:
+                continue  # actively running in this process
+            updated = job.updated_at
+            # SQLite may return naive datetimes; treat them as UTC.
+            if updated is not None and updated.tzinfo is None:
+                updated = updated.replace(tzinfo=timezone.utc)
+            if updated is not None and (now - updated).total_seconds() < max_idle_seconds:
+                continue  # too fresh to judge (e.g. the process just restarted)
+            crud.update_ingestion_job_status(
+                db, job.id, "failed",
+                error_msg="Ingestion stalled and was cancelled. Press Retry to run it again.",
+            )
+            failed += 1
+    finally:
+        db.close()
+    if failed:
+        logger.warning("Swept %d stalled ingestion job(s) to failed (retryable).", failed)
+    return failed

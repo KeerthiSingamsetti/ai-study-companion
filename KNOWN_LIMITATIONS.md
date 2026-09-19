@@ -55,7 +55,7 @@ Remaining constraints of that design:
 
 - The worker is in-process and single-threaded. It survives proxy timeouts by construction, but it is not a distributed queue: a crash mid-processing leaves the job `processing` until a manual retry, and there is no automatic retry/backoff.
 - Startup recovery covers `queued` jobs (and documents without job rows that have persisted media). A job that died mid-flight in `processing` is not auto-resumed.
-- Upload media and FAISS indexes live on local disk; on ephemeral hosts (e.g. Render free tier) a redeploy can still lose the stored media for recovery, in which case the retry endpoint reports that the upload must be repeated.
+- Raw upload bytes are stored durably in the database (`document_upload_media`), so retries and startup recovery survive redeploys and restarts. FAISS indexes still live on local disk and are rebuilt from the stored bytes when missing; a redeploy therefore re-runs ingestion work rather than losing uploads.
 - Unique event keys help avoid duplicates, but separate state/event commits are not an exactly-once transaction guarantee under crashes or concurrent requests.
 
 These are limitations against PRD §§5, 12, 13 and 18, not features that should be inferred from the presence of job/event tables.

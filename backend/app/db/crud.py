@@ -29,6 +29,7 @@ from app.db.models import (
     TopicsCache,
     User,
     UserMemory,
+    DocumentUploadMedia,
 )
 
 # PRD §12 event taxonomy.  Keeping this at the persistence boundary prevents
@@ -674,6 +675,34 @@ def update_document_counts(db: Session, document_id: str, *, page_count: int, ch
     db.commit()
     db.refresh(document)
     return document
+
+
+# ---------------------------------------------------------------------------
+# Document Upload Media (durable raw upload bytes)
+# ---------------------------------------------------------------------------
+
+def save_document_upload_media(db: Session, *, document_id: str, content: bytes) -> None:
+    """Persist raw upload bytes for a document (idempotent upsert)."""
+    existing = db.get(DocumentUploadMedia, document_id)
+    if existing is not None:
+        existing.content = content
+    else:
+        db.add(DocumentUploadMedia(document_id=document_id, content=content))
+    db.commit()
+
+
+def get_document_upload_media(db: Session, document_id: str) -> Optional[bytes]:
+    """Return the stored upload bytes for a document, or None."""
+    row = db.get(DocumentUploadMedia, document_id)
+    return row.content if row is not None else None
+
+
+def delete_document_upload_media(db: Session, document_id: str) -> None:
+    """Remove stored upload bytes (after success, or with the document)."""
+    row = db.get(DocumentUploadMedia, document_id)
+    if row is not None:
+        db.delete(row)
+        db.commit()
 
 
 # ---------------------------------------------------------------------------

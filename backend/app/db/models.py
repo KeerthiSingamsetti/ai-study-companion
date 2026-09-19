@@ -16,6 +16,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -151,6 +152,36 @@ class Document(Base):
 
     def __repr__(self) -> str:
         return f"<Document id={self.id!r} filename={self.filename!r}>"
+
+
+# ---------------------------------------------------------------------------
+# document_upload_media
+# ---------------------------------------------------------------------------
+
+class DocumentUploadMedia(Base):
+    """Raw upload bytes for a document, stored durably in the database.
+
+    Deployment disks are ephemeral (Render free tier wipes them on every
+    deploy/restart), which previously destroyed pending uploads mid-flight —
+    jobs then failed with "the upload file is gone". Persisting the bytes in
+    the same database as the job rows makes ingestion retryable and
+    recoverable across deploys. Rows are deleted when the document is deleted
+    (the copy is deliberately kept after successful ingestion so later
+    retries never need a re-upload).
+    """
+
+    __tablename__ = "document_upload_media"
+
+    document_id: Mapped[str] = mapped_column(
+        String, ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True
+    )
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<DocumentUploadMedia document_id={self.document_id!r}>"
 
 
 # ---------------------------------------------------------------------------

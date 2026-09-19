@@ -60,7 +60,6 @@ class DocumentService:
         for filename, content in files:
             document_id = str(uuid4())
             save_path = str(_VECTORSTORE_DIR / thread_id / document_id)
-            media_path = worker.media_store.save(document_id, content)
             document = crud.create_document(
                 db,
                 document_id=document_id,
@@ -70,6 +69,10 @@ class DocumentService:
                 page_count=0,
                 chunk_count=0,
             )
+            # Upload bytes land in the database (FK requires the row above to
+            # exist first) BEFORE this request returns — they must survive any
+            # restart or redeploy.
+            worker.media_store.save(document_id, content)
             # Persisted immediately so the polling UI sees 'queued' even if the
             # process restarts before the worker picks the job up.
             crud.create_ingestion_job(
@@ -77,7 +80,7 @@ class DocumentService:
                 user_id=(thread.user_id if thread is not None else None) or DEFAULT_USER_ID,
                 project_id=thread_id,
             )
-            worker.enqueue(document_id, media_path)
+            worker.enqueue(document_id)
             documents.append(document)
         return documents
 
@@ -87,10 +90,9 @@ class DocumentService:
         if document is None:
             raise DocumentNotFoundError(document_id)
         worker = self._worker()
-        media_path = worker.media_store.resolve(document_id)
-        if media_path is None:
+        if worker.media_store.resolve_bytes(document_id) is None:
             return False
-        worker.enqueue(document_id, media_path)
+        worker.enqueue(document_id)
         return True
 
     def list_for_thread(self, db: Session, thread_id: str) -> list[Document]:
@@ -112,5 +114,5 @@ class DocumentService:
         crud.delete_document(db, document_id)
         try:
             self._worker().media_store.purge(document_id)
-        except OSError:
+        except Exception:
             pass

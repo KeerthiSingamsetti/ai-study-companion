@@ -22,7 +22,7 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.services import ingestion_worker as worker_module
 from app.services.document_service import DocumentService
-from app.services.ingestion_worker import IngestionWorker, UploadMediaStore, recover_pending_ingestion_jobs
+from app.services.ingestion_worker import IngestionWorker, recover_pending_ingestion_jobs, sweep_stalled_jobs
 
 
 def _pdf_bytes(text: str = "StudyMate ingestion worker test page.") -> bytes:
@@ -45,13 +45,14 @@ class InstantEmbeddings:
 
 
 @pytest.fixture()
-def fast_worker(monkeypatch, tmp_path):
+def fast_worker(monkeypatch):
     """Replace the process worker with a deterministic local-model one.
 
     The session TestClient does not run the app lifespan, so the document
-    service dependency is wired here as well.
+    service dependency is wired here as well. The media store is the default
+    database-backed one (the suite runs on the isolated test database).
     """
-    worker = IngestionWorker(InstantEmbeddings(), media_store=UploadMediaStore(base_dir=tmp_path))
+    worker = IngestionWorker(InstantEmbeddings())
     monkeypatch.setattr(worker_module, "_WORKER", worker, raising=False)
     app.state.document_service = DocumentService(InstantEmbeddings())
     yield worker
@@ -153,9 +154,7 @@ def test_failed_ingestion_records_error_and_retry_recovers(test_client, auth_hea
     try:
         fault_patch.setattr(ingest_module, "load_and_chunk_pdf", boom)
         job_id = _first_job(test_client, auth_headers, thread_id, document["id"])["id"]
-        assert fast_worker.enqueue(
-            document["id"], fast_worker.media_store.resolve(document["id"])
-        )
+        assert fast_worker.enqueue(document["id"])
         assert _wait_for_status(fast_worker, document["id"], {"failed"}) == "failed"
     finally:
         fault_patch.undo()
@@ -230,7 +229,7 @@ def test_recover_fails_stale_processing_jobs_instead_of_recrashing(test_client, 
     finally:
         db.close()
 
-    restarted = IngestionWorker(InstantEmbeddings(), media_store=fast_worker.media_store)
+    restarted = IngestionWorker(InstantEmbeddings())
     monkeypatch.setattr(worker_module, "_WORKER", restarted, raising=False)
     recover_pending_ingestion_jobs()
 
@@ -253,10 +252,11 @@ def test_recover_pending_ingestion_jobs_requeues(test_client, auth_headers, fast
     document = _upload(test_client, auth_headers, thread_id, filename="recover.pdf")
     assert _first_job(test_client, auth_headers, thread_id, document["id"])["status"] == "queued"
 
-    # Simulate a restart: fresh worker instance with an empty queue but the
-    # same media store (as a redeployed process would share persisted files).
+    # Simulate a restart: fresh worker instance with an empty queue. Upload
+    # bytes live in the (shared, durable) test database, so recovery can
+    # requeue from storage exactly as a redeployed process would.
     monkeypatch.setattr(IngestionWorker, "_ensure_thread", original_start)
-    restarted = IngestionWorker(InstantEmbeddings(), media_store=fast_worker.media_store)
+    restarted = IngestionWorker(InstantEmbeddings())
     monkeypatch.setattr(worker_module, "_WORKER", restarted, raising=False)
     assert recover_pending_ingestion_jobs() >= 1
     assert _wait_for_status(restarted, document["id"], {"ready"}) == "ready"
@@ -277,6 +277,30 @@ def test_quiz_generation_rejects_unprocessed_document(test_client, auth_headers,
             )
     finally:
         db.close()
+
+
+def test_stall_sweep_fails_orphaned_processing_job(test_client, auth_headers, fast_worker, monkeypatch):
+    """A 'processing' job nobody is running gets auto-failed by the sweep."""
+    thread_id = _create_project(test_client, auth_headers)
+    document = _upload(test_client, auth_headers, thread_id)
+    job = _first_job(test_client, auth_headers, thread_id, document["id"])
+    assert _wait_for_status(fast_worker, document["id"], {"ready"}) == "ready"
+
+    # Simulate an orphaned job: row says processing, no live work in this process.
+    db = SessionLocal()
+    try:
+        crud.update_ingestion_job_status(db, job["id"], "processing")
+    finally:
+        db.close()
+
+    # Fresh (updated_at now) jobs are left alone...
+    from app.services.ingestion_worker import sweep_stalled_jobs
+    assert sweep_stalled_jobs(max_idle_seconds=9999) == 0
+    # ...but once the row looks abandoned, the sweep fails it (retryable).
+    assert sweep_stalled_jobs(max_idle_seconds=0) == 1
+    swept = _first_job(test_client, auth_headers, thread_id, document["id"])
+    assert swept["status"] == "failed"
+    assert "retry" in swept["error_msg"].lower()
 
 
 def test_secret_key_meets_hs256_minimum(monkeypatch):

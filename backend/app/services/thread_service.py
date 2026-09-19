@@ -75,7 +75,7 @@ class ThreadService:
             delete_index(document.vectorstore_path)
             try:
                 media_store.purge(document.id)
-            except OSError:
+            except Exception:
                 pass
         crud.delete_thread(db, thread_id)
 
