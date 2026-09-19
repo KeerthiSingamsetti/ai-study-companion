@@ -2,6 +2,19 @@
 
 from __future__ import annotations
 
+import os
+
+# Cap native thread pools BEFORE numpy/faiss/torch get imported. On multi-core
+# hosts each BLAS/OpenMP pool reserves per-core buffers that can add hundreds
+# of MB of RSS — enough to OOM a 512MB free-tier container during ingestion.
+# The web workload is I/O-bound; single-threaded BLAS costs nothing here.
+for _var in (
+    "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "KMP_INIT_AT_FORK",
+):
+    os.environ.setdefault(_var, "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
@@ -173,9 +186,14 @@ def _mount_frontend(app: FastAPI) -> None:
                 lambda path=file_path: FileResponse(path)
             )
 
-    @app.get("/{full_path:path}", include_in_schema=False)
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     async def serve_frontend(full_path: str = "") -> FileResponse:
-        """SPA fallback: serve index.html for any unmatched, non-API path."""
+        """SPA fallback: serve index.html for any unmatched, non-API path.
+
+        HEAD is included because deployment health probes (Render) use it;
+        a 405 here makes the platform treat a perfectly healthy service as
+        failing.
+        """
         if full_path.startswith("api/"):
             # Unknown API paths must stay machine-readable 404s, not HTML.
             raise HTTPException(status_code=404, detail="Not Found")
