@@ -49,6 +49,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     checkpointer = create_checkpointer()
     try:
         init_db()
+        # get_embeddings() returns a lazy proxy: the BGE model (and the
+        # sentence-transformers/torch stack it needs) is imported and loaded on
+        # first real use, not during startup — see app/rag/embeddings.py.
         embeddings = get_embeddings()
         llm = create_llm()
         quiz_llm = create_quiz_llm()

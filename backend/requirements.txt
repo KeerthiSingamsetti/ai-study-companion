@@ -35,6 +35,9 @@ langchain-classic>=1.0.0
 
 # --- Configuration & Utility ---
 python-dotenv>=1.2.0
+# HTTP client for the Cohere embed API (app/rag/embeddings.py).
+# Declared explicitly: previously only available transitively.
+requests>=2.31.0
 
 # --- Evaluation (pinned: RAGAS APIs are not stable across releases) ---
 ragas==0.2.15

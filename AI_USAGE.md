@@ -48,8 +48,8 @@ Using a coding assistant to build the project is separate from how the product b
 | Tutor and synthesis | Groq through `ChatGroq`; documented model `openai/gpt-oss-120b` | Model selected by environment; grounded prompts, retrieved evidence and citation parsing |
 | Quiz, flashcard and study-plan generation | Dedicated Groq client constructed by `create_quiz_llm` | Configured quiz key/model; study-tool request/output contracts |
 | Open-ended grading service | Injected LLM grades against retrieved evidence and rubric | `OpenEndedGrade` validates bounded understanding/accuracy, concept lists and feedback |
-| Embeddings | `HuggingFaceEmbeddings`, `BAAI/bge-small-en-v1.5` | Local sentence-transformers inference; first-use model download |
-| Reranking | `CrossEncoder`, default `BAAI/bge-reranker-base` | Local inference; configurable model |
+| Embeddings | Cohere hosted Embed API, `embed-english-v3.0` (1024-dim) by default | Hosted inference, no local model memory, requires `COHERE_API_KEY`; switching models requires FAISS index rebuild (`python scripts/rebuild_vectorstore_embeddings.py`) |
+| Reranking | `CrossEncoder`, default `BAAI/bge-reranker-base` | Local inference; configurable model; implemented but disabled by default in production (`RERANKING_ENABLED=false`) because the combined local model stack exceeds the hosting tier's memory limit |
 | Concept resolution | Exact normalized match, then embedding cosine similarity | Project-local candidates; threshold 0.88 |
 | Mastery, adaptation and growth | Deterministic Python policies | No LLM required for the policy calculation |
 | Recommendation tool | Rules over persisted mastery and recent assessments | Read-only query; no extra generative model call needed |

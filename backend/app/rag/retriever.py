@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import math
+import os
 import re
 import threading
 from collections import OrderedDict
@@ -22,8 +23,20 @@ from pydantic import BaseModel, Field
 
 from app.rag import store
 from app.rag.exceptions import DocumentNotIndexedError, VectorStoreLoadError
-from app.rag.reranker import MODEL_NAME as RERANKER_MODEL_NAME
-from app.rag.reranker import rerank
+
+# Reranking requires the local BGE cross-encoder (torch, ~1.5GB resident once
+# loaded), which does not fit memory-constrained deployments such as Render's
+# 512MB free tier. It is therefore OFF by default and must be opted into
+# explicitly (RERANKING_ENABLED=true) where memory allows. Retrieval stays
+# fully functional without it: dense/hybrid similarity scores and thresholds
+# are used, and rerank_score is simply absent from results. This is a
+# deliberate, deployment-scoped tradeoff documented in KNOWN_LIMITATIONS.md.
+RERANKING_ENABLED = os.getenv("RERANKING_ENABLED", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +275,6 @@ def _cache_key(
         "query_variants": list(query_variants),
         "index_fingerprint": store.index_fingerprint(save_path),
         "use_reranking": use_reranking,
-        "reranker_model": RERANKER_MODEL_NAME if use_reranking else None,
         "use_hybrid_search": use_hybrid_search,
         "k": k,
         "rerank_top_k": rerank_top_k,
@@ -431,6 +443,10 @@ def retrieve(
         raise ValueError("k and rerank_top_k must be positive integers.")
     if use_hybrid_search and (bm25_weight < 0 or dense_weight < 0 or bm25_weight + dense_weight == 0):
         raise ValueError("Hybrid retrieval weights must be non-negative and not both zero.")
+    # The deployment gate wins over the per-request flag: callers may ask for
+    # reranking, but it only runs where the deployment opted into the local
+    # cross-encoder's memory cost.
+    use_reranking = use_reranking and RERANKING_ENABLED
 
     variants = [query]
     for variant in query_variants or ():
@@ -519,6 +535,10 @@ def retrieve(
     else:
         documents = [document for document, _ in candidate_pairs]
         base_scores = {_document_key(document): score for document, score in candidate_pairs}
+        # Imported here, not at module level: keeps sentence-transformers and
+        # torch out of the import graph entirely unless reranking actually runs.
+        from app.rag.reranker import rerank
+
         reranked = rerank(query, documents, top_k=len(documents))
         results = []
         for document, raw_rerank_score in reranked:

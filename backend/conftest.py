@@ -36,6 +36,14 @@ TEST_DB_PATH = BACKEND_DIR / "tests" / ".studymate-test.db"
 DEV_DB_PATH = BACKEND_DIR / "chatbot.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
 
+# Embeddings come from Cohere's hosted API in production, but tests never touch
+# the network: services inject fake embedding providers. The dummy key only
+# satisfies the constructor guard should something unexpectedly build the real
+# client. Reranking (local torch cross-encoder) stays disabled so the suite
+# exercises the default deployment configuration.
+os.environ.setdefault("COHERE_API_KEY", "test-only-dummy-key")
+os.environ.setdefault("RERANKING_ENABLED", "false")
+
 # Ensure `backend/` is on the path so `app.*` imports resolve correctly.
 sys.path.insert(0, str(BACKEND_DIR))
 

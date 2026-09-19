@@ -6,9 +6,10 @@ References: [Project_Requirements.pdf](Project_Requirements.pdf) and [compact_pr
 
 | Limitation | Consequence |
 |---|---|
-| **SQLite, not Postgres** | Suitable for a local prototype; concurrent writes, multi-instance deployment and migrations need more work. SQLAlchemy configuration alone does not establish tested Postgres support. |
+| **Postgres, not SQLite** | Production deployment uses PostgreSQL, hosted on Supabase, not SQLite. SQLite is used only for local development and the test suite. SQLite's file-based storage does not survive the hosting platform's ephemeral disk, which wipes on every restart or redeploy; this would cause silent, random data loss in a live demo. SQLAlchemy's ORM abstraction makes the switch transparent to application code — this is an intentional dev/prod split, not an inconsistency. Locally, the backend also regenerates SQLite indexes on startup.
+
 | **No OCR for scanned PDFs** | Image-only pages may yield no usable text. Upload a text-based PDF; do not expect scanned pages or diagrams to be understood visually. |
-| **Local embeddings via sentence-transformers, not a cloud API** | Uses `BAAI/bge-small-en-v1.5`; no NVIDIA credential is needed. First-use downloads and host CPU/RAM/cold-start costs remain. |
+| **Cloud embeddings via Cohere, not a local model** | Uses Cohere's embed API (`embed-english-v3.0` by default, 1024-dim) behind `COHERE_API_KEY`; no local model memory and no first-use model download. Switching embedding models changes the FAISS vector dimensions, so existing indexes must be rebuilt (`python scripts/rebuild_vectorstore_embeddings.py`).  FAISS indexes live on the backend's local disk and do not survive a deployment restart or redeploy, so uploaded source PDFs must be re-ingested after a redeploy. Embedding calls leave the host for Cohere's API; combined with Groq generation, no stage of the RAG pipeline is fully offline.
 | **Node-version issue blocks `npm run build`** | Production build is not verified in the reported environment. `npm run dev` works as reported by the owner. Use a compatible Node version and revalidate before deployment; P5 does not change the runtime or dependencies. |
 
 ## Documents and retrieval
@@ -17,7 +18,7 @@ References: [Project_Requirements.pdf](Project_Requirements.pdf) and [compact_pr
 - Structure-aware chunking helps retain table-like text but cannot guarantee accurate reconstruction of complex layouts, equations, tables or reading order.
 - Figure/caption text retrieval is not visual inspection of a diagram.
 - Bounded retrieval context can miss necessary evidence across pages. Broad queries may be refused even when relevant material exists.
-- **Phrasing-sensitive local-model retrieval:** Prior diagnostics reported by the owner found near-zero reranker discrimination (scores around 0.5000) for `retrieval_relevance` and `assessment_equivalent_wording`, reducing retrieval precision in the substituted local embedding/reranking pipeline; this is documented as a model limitation, not a code bug, behind the saved 6/8 result (see [EVAL_WRITEUP.md](EVAL_WRITEUP.md)).
+- **Reranking disabled by default (deployment-scoped tradeoff):** The local BGE cross-encoder reranker (`BAAI/bge-reranker-base`) measures ~1.5GB resident once loaded and cannot fit Render's 512MB free tier, so reranking is OFF unless `RERANKING_ENABLED=true`. Without it, ranking uses dense/hybrid similarity alone and `rerank_score` is absent from results; retrieval precision is somewhat reduced (owner diagnostics previously reported near-zero reranker discrimination anyway, see [EVAL_WRITEUP.md](EVAL_WRITEUP.md)). Enable the flag only on instances with ≥2GB spare memory.
 - The `0.35` threshold is a heuristic over the retrieval relevance score. It is not a calibrated correctness probability and requires revalidation after model/corpus changes.
 - Exact figure-caption matches use a special retrieval path; one threshold does not establish support for every response.
 - Source markers depend on model adherence and parsing. The saved evaluation includes an answer with citation-like prose but no returned sources.
@@ -28,7 +29,7 @@ References: [Project_Requirements.pdf](Project_Requirements.pdf) and [compact_pr
 
 - Groq generation depends on provider availability, valid model identifiers, quotas and network access. Temperature 0 reduces sampling variability but does not guarantee deterministic or correct answers.
 - The quiz client does not explicitly set temperature; it need not behave identically to the chat client.
-- Local embeddings do not make the product fully offline. Selected material, prompts and conversation context can leave the host for Groq generation.
+- Embedding calls leave the host for Cohere's API; combined with Groq generation, no stage of the RAG pipeline is fully offline.
 - Optional LangSmith tracing may transmit prompts, outputs and metadata. Enable it deliberately and avoid sensitive material without appropriate consent.
 - Pydantic validates structured shape and bounds, not factual accuracy, fairness or pedagogical quality.
 - Prompt-based grounding and instruction separation are not complete defenses against prompt injection.
@@ -71,8 +72,10 @@ These are limitations against PRD §§5, 12, 13 and 18, not features that should
 
 - Ownership checks and isolation tests are present, but no exhaustive security audit or penetration-test claim is made.
 - **Progress/memory scoping (fixed):** `/progress`, the tutor's `get_study_progress` tool and the general-chat memory context now scope every read and write to the authenticated user **and** the active Project. A Project belongs to exactly one Space, so Project scoping also isolates Spaces. Legacy rows written before scoping carry `project_id = NULL` and are deliberately excluded from Project-scoped views rather than being shown everywhere.
+- **Admin role restriction (fixed):** awarding admin status is deliberately harder than being a student. New admins are created only as the FIRST registered user, or via a direct database update (`make promote-admin`); there is no self-service admin-promote path.
 - The development JWT signing-secret fallback must be replaced with a strong secret. The README explicitly requires `SECRET_KEY`.
 - The legacy seeded `default_user` is not a documented usable login account.
+- The dedicated Admin Console is not inherited: admins surface here and nowhere else, rather than being given their own study workspace.
 - Protect database/index files and backups; do not expose local serialized index assets or accept untrusted prebuilt indexes.
 - Rate limits, upload resource limits, secret rotation, retention/deletion policy, production TLS and robust operational recovery require deployment-specific review.
 - The Vite development proxy is not production API routing. A deployed frontend needs a corresponding backend route/proxy configuration.
@@ -89,6 +92,6 @@ These are limitations against PRD §§5, 12, 13 and 18, not features that should
 - The available development prompt record is partial. Missing historical conversations are not reconstructed as fabricated “actual prompts.”
 - Older `PROJECT_ARCHITECTURE.md` and `STUDYMATE_PROJECT_OVERVIEW.md` were left untouched; this P5 documentation set records current inspected details and explicit evidence boundaries.
 
-## Highest-value follow-up work
+## Higher-value follow-up work
 
 After the documentation-only phase: validate the complete learning loop and deployment; make ingestion/retries durable; expand direct grading/recommendation and citation evaluation; populate measured telemetry consistently; then address storage scalability, migration tooling and optional OCR. These are future improvements, not completed changes.

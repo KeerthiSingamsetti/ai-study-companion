@@ -5,7 +5,18 @@ from __future__ import annotations
 import re
 
 
-_CITATION_MARKER_PATTERN = re.compile(r"\[\[cite:(\d+)\]\]", re.IGNORECASE)
+# Matches evidence markers the model may emit in realistic variants of the
+# canonical [[cite:n]] form requested by the system prompt: single or double
+# square/CJK brackets, optional whitespace, full-width colon, and the label
+# words cite/citation/ref/source (a model that echoes the context labels
+# [SOURCE:n] in its answer is still citing source n). Live capture against
+# openai/gpt-oss-120b showed canonical output, but variant emission across
+# many conversations would silently leak markers to the client and empty the
+# Sources list, so the parser tolerates the plausible forms.
+_CITATION_MARKER_PATTERN = re.compile(
+    r"[\[【]{1,2}\s*(?:cite|citation|ref|source)\s*[:：]?\s*(\d+)\s*[\]】]{1,2}",
+    re.IGNORECASE,
+)
 _GROUNDED_REFUSAL_PHRASES: tuple[str, ...] = (
     "i couldn't find enough evidence",
     "i could not find enough evidence",
@@ -41,4 +52,9 @@ def extract_citation_ids(response_text: str) -> list[int]:
 
 def strip_citation_markers(response_text: str) -> str:
     """Remove internal evidence markers before returning an answer to an API client."""
-    return _CITATION_MARKER_PATTERN.sub("", response_text).replace("  ", " ").strip()
+    cleaned = _CITATION_MARKER_PATTERN.sub("", response_text)
+    # Collapse the double space a removed marker leaves between words, and the
+    # lone space before punctuation when the marker sat directly before it
+    # ("sunlight [[cite:1]]." -> "sunlight.").
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    return re.sub(r" +([.,;:!?])", r"\1", cleaned).strip()

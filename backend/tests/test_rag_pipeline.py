@@ -306,10 +306,15 @@ def test_retrieve_raises_documentnotindexed_on_corrupted_index(embeddings, temp_
 
 
 @pytest.mark.integration
-def test_retrieve_returns_correctly_reranked_chunks(embeddings, temp_index_dir):
+def test_retrieve_returns_correctly_reranked_chunks(embeddings, temp_index_dir, monkeypatch):
     """End-to-end integration test proving retrieve() reranks and maps identity correctly."""
+    from app.rag import retriever as retriever_module
     from app.rag.store import build_and_save_index
     from langchain_core.documents import Document
+    
+    # Reranking is deployment-gated by RERANKING_ENABLED (default false — see
+    # app/rag/retriever.py): the local torch cross-encoder only runs where the
+    # deployment opted in, so this integration test flips the module flag.
     
     query = "How many apples does John have?"
     chunks = [
@@ -329,7 +334,8 @@ def test_retrieve_returns_correctly_reranked_chunks(embeddings, temp_index_dir):
     
     build_and_save_index(chunks, embeddings, temp_index_dir)
     
-    # Retrieve with reranking enabled
+    # Retrieve with reranking enabled, overriding the deployment gate for this test.
+    monkeypatch.setattr(retriever_module, "RERANKING_ENABLED", True)
     results = retrieve(query, temp_index_dir, embeddings, use_reranking=True, k=3, rerank_top_k=2)
     
     assert len(results) == 2

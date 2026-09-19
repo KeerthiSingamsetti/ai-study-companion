@@ -109,13 +109,25 @@ The pre-existing assumptions note records that the previously used Groq Llama-3.
 
 ## 9. NVIDIA/cloud embeddings replaced by local sentence-transformers
 
-**Current decision:** Use `HuggingFaceEmbeddings` with `BAAI/bge-small-en-v1.5` locally, with local `BAAI/bge-reranker-base` reranking. No NVIDIA/NIM credential is required.
+**Original decision (kept as history):** Use `HuggingFaceEmbeddings` with `BAAI/bge-small-en-v1.5` locally, with local `BAAI/bge-reranker-base` reranking. No NVIDIA/NIM credential was required.
 
-**Reasoning:** Remove cloud embedding credentials, per-request embedding quota, and network availability from ingestion/retrieval while preserving the existing FAISS interface. This simplifies fresh-clone setup and keeps embedding inference local.
+**Original reasoning (kept as history):** Remove cloud embedding credentials, per-request embedding quota, and network availability from ingestion/retrieval while preserving the existing FAISS interface. This simplified fresh-clone setup and kept embedding inference local.
 
-**Evidence boundary:** Earlier NVIDIA/NIM terminology remains in code/document history, but the available sources do not establish a specific NVIDIA outage, error code, or removal date. No such incident is invented here.
+**Tradeoffs observed (kept as history):** First-use model downloads still needed internet; CPU/RAM usage and cold-start latency moved to the host. Local embeddings did not make the whole product offline: selected context was still sent to Groq. Indexes created with a different embedding model had to be rebuilt rather than assumed compatible.
 
-**Tradeoffs:** First-use model downloads still need internet; CPU/RAM usage and cold-start latency move to the host. Local embeddings do not make the whole product offline: selected context is still sent to Groq. Indexes created with a different embedding model must be rebuilt rather than assumed compatible.
+## 9a. Local embeddings deprioritized by deployment memory evidence
+
+**Current decision:** The local BGE + bge-reranker configuration was replaced in deployment with Cohere's hosted Embed API (`COHERE_API_KEY`). See the updated AI_USAGE.md for the current embedding configuration.
+
+## 9a. Local embeddings deprioritized by deployment memory evidence
+
+**Current decision:** The local BGE + bge-reranker configuration documented once was correct for the prototype, but it was replaced in deployment with Cohere's hosted Embed API (`COHERE_API_KEY`). See the updated AI_USAGE.md for the current embedding configuration.
+
+**Reasoning:** The local route removed the original cloud-embedding dependency, but local sentence-transformers still carries a real memory and cold-start cost on the app server (torch plus the local encoder). Adding a local cross-encoder reranker made the combined stack exceed the hosting tier's memory limit at startup, so the deployment moved embedding inference off the app server.
+
+**Evidence boundary:** This choice is a tradeoff based on the discovered deployment memory constraint, not a general claim that Cohere is cheaper or better than local models. It trades local environment independence and offline-ness for lower app-server memory and simpler cold-start behavior. The reranker is implemented but disabled by default in production (`RERANKING_ENABLED=false`) for the same memory reason; retrieval falls back to hybrid/dense similarity alone when it is off.
+
+**Boundary:** The local-model fallback path remains for local development where the host has sufficient RAM. Global cost, quota and latency are not continuously measured.
 
 ## 10. Retrieval fusion and bounded context
 
@@ -125,13 +137,14 @@ The retriever defaults to dense weight 0.6, BM25 weight 0.4, and RRF constant 60
 
 Default retrieval keeps a small final evidence set (`k=6`, rerank top 4; callers can override) to bound context and generation cost. This can omit needed multi-page evidence. Caching avoids repeated local work but is process-local, not distributed infrastructure.
 
-## 11. SQLite instead of Postgres
+## 11. PostgreSQL instead of SQLite
 
-**Decision:** Keep SQLite, WAL, and SQLAlchemy for this prototype.
+**Decision:** Use PostgreSQL via Supabase for production, while retaining SQLite for local development and testing.
 
-**Reasoning:** Zero database-service provisioning and compatibility with the inherited application/checkpointer favor reliable local demonstration over a rushed migration. The compact brief explicitly permits SQLite as a scoped tradeoff.
+**Reasoning:** SQLite's file-based storage does not persist reliably on Render's ephemeral filesystem. PostgreSQL provides persistent storage for production user data and avoids data loss after restarts or redeployments.
 
-**Consequence:** Limited concurrent writes and horizontal scaling; local files need persistence and backups. A `DATABASE_URL` variable alone does not establish tested Postgres support. Lightweight startup schema changes are not a full migration strategy.
+**Consequence:** Production data is persisted independently of Render's ephemeral filesystem, while SQLite remains available for lightweight local development and testing. The codebase required auditing for SQLite-specific behavior, including `PRAGMA` statements and raw `ALTER TABLE` syntax, and database access was made database-agnostic through the `DATABASE_URL` environment variable.
+
 
 ## 12. Text PDFs, not OCR or multimodal document understanding
 
@@ -165,9 +178,11 @@ Inspecting one user's learning journey (PRD §16: Projects, activity, assessment
 
 **Reasoning:** The PRD frames admin purely as an inspection/oversight role (§16 uses only "inspect/view/filter" verbs, never "create" or "practise"), so admin capabilities are modelled as verbs over other users' data. A platform admin using the AI Tutor as a personal chatbot does not align with the role's actual purpose, and exposing student workspaces to admins would also widen the surface for accidental cross-account actions. Admins who want the learner experience create a separate student account. Separation also keeps the student shell free of role-conditional UI: the sidebar registry is student-only by construction rather than filtered by `role` at render time.
 
-**Boundary:** The PRD doesn't specify whether admins need their own Spaces/Projects; assumed no, since §16 frames the admin role as platform oversight, not as a learner. Promotion of additional admins remains a direct DB update — there is deliberately no in-product path that grants the admin role.
+**Boundary:** The PRD doesn't specify whether admins need their own Spaces/Projects; **resolved no** — admin is an inspection/oversight role per §16's verb choices (inspect/view/filter, never create), so admins land on the Admin Console rather than the student onboarding flow.
 
-## 16. Evaluation and submission evidence
+**Admin promotion (fixed during this phase):** admin role assignment is restricted to first-registered user + direct database promotion. A self-service promotion path for existing accounts was identified as a deployment security risk and removed.
+
+## 17. Evaluation and submission evidence
 
 - The owner confirmed P4 and 193/193 backend tests; this documentation pass accepts that handoff without rerunning.
 - Saved `backend/eval/results.md` records **6/8**, not 8/8. Backend test success and live model quality measure different things.

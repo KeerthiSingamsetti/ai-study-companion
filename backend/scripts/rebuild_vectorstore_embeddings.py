@@ -1,8 +1,12 @@
-"""Rebuild persisted StudyMate FAISS indexes with local BGE embeddings.
+"""Rebuild persisted StudyMate FAISS indexes with the configured embedding provider.
 
 Each index is rebuilt from its own persisted ``chunks.pkl`` so documents never
 cross project boundaries. The command only permits index paths below the
 application's ``backend/vectorstores`` directory.
+
+Run this after any embedding-model change: embeddings from different models
+have different vector dimensions and are not interchangeable. Current provider:
+Cohere's embed API (see app/rag/embeddings.py).
 """
 from __future__ import annotations
 
@@ -48,4 +52,6 @@ def rebuild_all() -> int:
 
 
 if __name__ == "__main__":
-    print(f"Rebuilt {rebuild_all()} vectorstore index(es) with BAAI/bge-small-en-v1.5.")
+    from app.rag.embeddings import COHERE_EMBED_MODEL
+
+    print(f"Rebuilt {rebuild_all()} vectorstore index(es) with {COHERE_EMBED_MODEL} (Cohere embed API).")

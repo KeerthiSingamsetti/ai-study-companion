@@ -3,14 +3,24 @@ Cross-encoder reranking for the StudyMate RAG pipeline.
 
 Uses a local sentence-transformers cross-encoder to rescore chunks
 retrieved by the initial vector search, dramatically improving relevance.
+
+The model is loaded lazily on the first ``rerank`` call, and ``CrossEncoder`` is
+imported at that same point: importing ``sentence_transformers`` pulls in torch,
+which is a large part of the startup memory footprint of a small container.
+Nothing in this module runs at application startup.
 """
+from __future__ import annotations
+
 import logging
 import os
 import threading
-from typing import List, Tuple
+from typing import TYPE_CHECKING, List, Tuple
 
 from langchain_core.documents import Document
-from sentence_transformers import CrossEncoder
+from langsmith import traceable
+
+if TYPE_CHECKING:  # Type-checkers only: keeps torch out of the import graph.
+    from sentence_transformers import CrossEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +33,6 @@ _MODEL_LOCK = threading.Lock()
 # environments or an experiment.
 MODEL_NAME = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-base")
 
-
-from langsmith import traceable
 
 def _get_model() -> CrossEncoder:
     """
@@ -42,6 +50,10 @@ def _get_model() -> CrossEncoder:
         # Double-check inside the lock to prevent a race condition 
         # where multiple threads pass the first check simultaneously.
         if _RERANKER_MODEL is None:
+            # Deferred import and load: neither torch nor the weights are
+            # touched until a request actually needs reranking.
+            from sentence_transformers import CrossEncoder
+
             logger.info(f"Lazy-loading reranker model: {MODEL_NAME}")
             _RERANKER_MODEL = CrossEncoder(MODEL_NAME)
             
