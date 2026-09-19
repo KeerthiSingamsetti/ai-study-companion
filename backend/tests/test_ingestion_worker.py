@@ -211,7 +211,13 @@ def test_jobs_endpoint_reports_live_embedding_progress(test_client, auth_headers
     assert _wait_for_status(fast_worker, document["id"], {"ready"}) == "ready"
 
 
-def test_recover_requeues_jobs_stuck_in_processing(test_client, auth_headers, fast_worker, monkeypatch):
+def test_recover_fails_stale_processing_jobs_instead_of_recrashing(test_client, auth_headers, fast_worker, monkeypatch):
+    """A job that died mid-processing must NOT auto-resume at boot.
+
+    Auto-resume crashed-looped the small Render container (embed → OOM →
+    restart → embed again → Bad Gateway). Instead recovery marks the job
+    failed with a retryable message; the user re-runs it via Retry.
+    """
     thread_id = _create_project(test_client, auth_headers)
     document = _upload(test_client, auth_headers, thread_id)
     job = _first_job(test_client, auth_headers, thread_id, document["id"])
@@ -226,7 +232,15 @@ def test_recover_requeues_jobs_stuck_in_processing(test_client, auth_headers, fa
 
     restarted = IngestionWorker(InstantEmbeddings(), media_store=fast_worker.media_store)
     monkeypatch.setattr(worker_module, "_WORKER", restarted, raising=False)
-    assert recover_pending_ingestion_jobs() >= 1
+    recover_pending_ingestion_jobs()
+
+    recovered = _first_job(test_client, auth_headers, thread_id, document["id"])
+    assert recovered["status"] == "failed"
+    assert "interrupted" in recovered["error_msg"].lower()
+
+    # The failed job stays retryable through the normal API path.
+    retry = test_client.post(f"/ingestion-jobs/{job['id']}/retry", headers=auth_headers)
+    assert retry.status_code == 200, retry.text
     assert _wait_for_status(restarted, document["id"], {"ready"}) == "ready"
 
 

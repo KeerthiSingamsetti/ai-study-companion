@@ -78,9 +78,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # Single background worker for PDF ingestion. Creating it here pins it
         # to the same embeddings client the rest of the app uses; startup
         # recovery re-enqueues uploads that were still queued when the
-        # process last stopped (deploy restarts included).
+        # process last stopped (deploy restarts included). Recovery must
+        # never take startup down — a failed requeue is logged, not raised.
         app.state.ingestion_worker = get_ingestion_worker(embeddings)
-        recover_pending_ingestion_jobs()
+        try:
+            recover_pending_ingestion_jobs()
+        except Exception:  # pragma: no cover - defensive
+            logging.getLogger(__name__).exception(
+                "Startup ingestion recovery failed; continuing without it."
+            )
         tools = [rag_tool, quiz_tool, flashcard_tool, planner_tool, progress_tool, recommendation_tool]
         app.state.chat_service = ChatService(
             create_graph(llm=llm, checkpointer=checkpointer, tools=tools),

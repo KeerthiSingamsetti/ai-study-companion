@@ -331,29 +331,43 @@ def set_ingestion_worker(worker: Optional[IngestionWorker]) -> None:
 
 
 def recover_pending_ingestion_jobs() -> int:
-    """Re-enqueue queued jobs and job-less documents after a restart/redeploy.
+    """Reconcile unfinished ingestion jobs after a restart/redeploy.
 
-    Returns the number of documents re-enqueued. Documents uploaded before the
-    background-worker rollout have no persisted upload media and cannot be
-    recovered here; they keep whatever index state they already had.
+    Jobs that never started (``queued``) and documents without job rows are
+    re-enqueued. Jobs that died mid-flight (``processing``) are marked
+    ``failed`` with a retryable message instead of auto-resuming — resuming
+    them immediately crash-looped memory-constrained containers
+    (embed → OOM → restart → embed again → Bad Gateway). Returns the number
+    of documents re-enqueued.
     """
     from app.config import DEFAULT_USER_ID
 
     requeued = 0
+    failed_stale = 0
     db = SessionLocal()
     try:
         worker = get_ingestion_worker()
         media_store = worker.media_store
-        for status in ("queued", "processing"):
-            # Any 'processing' row at startup is stale: this process just
-            # booted, so nothing can legitimately be mid-flight.
-            for job in crud.list_ingestion_jobs_by_status(db, status):
-                document = crud.get_document(db, job.document_id)
-                if document is None:
-                    continue
-                media_path = media_store.resolve(document.id)
-                if media_path is not None and worker.enqueue(document.id, media_path):
-                    requeued += 1
+        # Jobs that never started are safe to auto-resume.
+        for job in crud.list_ingestion_jobs_by_status(db, "queued"):
+            document = crud.get_document(db, job.document_id)
+            if document is None:
+                continue
+            media_path = media_store.resolve(document.id)
+            if media_path is not None and worker.enqueue(document.id, media_path):
+                requeued += 1
+        # 'processing' rows are stale after a restart — the process died
+        # mid-job. Fail them explicitly; the user retries on a stable service.
+        for job in crud.list_ingestion_jobs_by_status(db, "processing"):
+            document = crud.get_document(db, job.document_id)
+            if document is None:
+                continue
+            if media_store.resolve(document.id) is not None:
+                message = "Ingestion was interrupted by a restart. Press Retry to resume it."
+            else:
+                message = "Ingestion was interrupted by a restart and the upload file is gone. Upload the PDF again."
+            crud.update_ingestion_job_status(db, job.id, "failed", error_msg=message)
+            failed_stale += 1
         for document in crud.list_documents_missing_ingestion_jobs(db):
             media_path = media_store.resolve(document.id)
             if media_path is None:
@@ -369,4 +383,6 @@ def recover_pending_ingestion_jobs() -> int:
         db.close()
     if requeued:
         logger.info("Re-enqueued %d pending ingestion job(s) after restart.", requeued)
+    if failed_stale:
+        logger.info("Marked %d interrupted ingestion job(s) as failed (retryable).", failed_stale)
     return requeued
