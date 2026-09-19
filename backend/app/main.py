@@ -26,6 +26,22 @@ from dotenv import load_dotenv
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(_BACKEND_DIR / ".env", override=False)
 
+# Reranking loads a local torch cross-encoder (~1.5GB resident) on first use,
+# which no 512MB instance can survive. This runs BEFORE app.rag.retriever reads
+# RERANKING_ENABLED at import time, so a too-small instance can decline the
+# feature loudly instead of being OOM-killed mid-request.
+from app.memory import describe_memory, reranking_is_feasible  # noqa: E402
+
+if os.getenv("RERANKING_ENABLED", "").strip().lower() in {"1", "true", "yes"}:
+    if not reranking_is_feasible():
+        os.environ["RERANKING_ENABLED"] = "false"
+        logging.getLogger(__name__).error(
+            "RERANKING_ENABLED is set, but this instance cannot hold the local "
+            "reranking model (~1.5GB); reranking has been disabled to keep the "
+            "service running (%s).",
+            describe_memory(),
+        )
+
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -110,9 +126,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.exception(
                 "Startup ingestion recovery failed; continuing without it."
             )
-        rss = process_rss_mb()
-        if rss is not None:
-            logger.info("Startup complete; process RSS %.1f MB", rss)
+        logger.info("Startup complete; memory %s", describe_memory())
         tools = [rag_tool, quiz_tool, flashcard_tool, planner_tool, progress_tool, recommendation_tool]
         app.state.chat_service = ChatService(
             create_graph(llm=llm, checkpointer=checkpointer, tools=tools),
@@ -162,6 +176,23 @@ def create_app() -> FastAPI:
     ):
         app.include_router(router)
         app.include_router(router, prefix="/api")
+
+    @app.get("/health", include_in_schema=False)
+    @app.get("/api/health", include_in_schema=False)
+    def health() -> dict:
+        """Liveness probe that also reports how close we are to the memory limit.
+
+        Render (and any platform) must be able to probe this cheaply, and the
+        operator needs to see the numbers without shelling into the container.
+        """
+        from app.memory import memory_headroom_mb, memory_limit_mb, process_rss_mb
+
+        return {
+            "status": "ok",
+            "rss_mb": process_rss_mb(),
+            "limit_mb": memory_limit_mb(),
+            "headroom_mb": memory_headroom_mb(),
+        }
 
     _mount_frontend(app)
     return app

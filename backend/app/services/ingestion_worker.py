@@ -41,17 +41,15 @@ from langchain_core.embeddings import Embeddings
 from app.db import crud
 from app.db.session import SessionLocal
 
+from app.memory import (
+    MemoryBudgetError,
+    exceeds_abort_threshold,
+    has_room_for_ingestion,
+    memory_budget_message,
+)
+from app.memory import process_rss_mb as process_rss_mb  # re-exported for app.main
+
 logger = logging.getLogger(__name__)
-
-
-def process_rss_mb() -> Optional[float]:
-    """Best-effort resident memory of this process, for startup diagnostics."""
-    try:
-        with open("/proc/self/statm", "r", encoding="ascii") as handle:
-            pages = int(handle.read().split()[1])
-        return round(pages * (os.sysconf("SC_PAGE_SIZE") / 1024 / 1024), 1)
-    except (OSError, ValueError, AttributeError, IndexError):
-        return None
 
 
 def release_ingestion_memory(chunks: Optional[list] = None) -> None:
@@ -277,6 +275,13 @@ class IngestionWorker:
         from app.rag.ingest import load_and_chunk_pdf
         from app.rag.store import build_and_save_index, delete_index
 
+        if not has_room_for_ingestion():
+            # Refuse before allocating rather than letting the platform
+            # OOM-kill the process. A clean, retryable failure keeps the
+            # service — and every other user's requests — alive; an OOM kill
+            # does not, and it also loses the error message entirely.
+            raise MemoryBudgetError(memory_budget_message())
+
         db = SessionLocal()
         try:
             document = crud.get_document(db, document_id)
@@ -307,6 +312,11 @@ class IngestionWorker:
                 state = self._progress.get(document_id)
                 if state is not None:
                     state["processed_chunks"] = state.get("processed_chunks", 0) + batch_size
+            if exceeds_abort_threshold():
+                # Stop while there is still room to persist the failure and
+                # serve requests. Running on until the kernel kills us would
+                # take the whole service down and lose the reason why.
+                raise MemoryBudgetError(memory_budget_message())
 
         progress_embeddings = _ProgressEmbeddings(self._embeddings, _on_batch)
         try:

@@ -7,7 +7,9 @@ ingestion-jobs endpoints.
 """
 
 from typing import Annotated
+import gc
 import json
+import os
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
@@ -21,6 +23,20 @@ from app.services.document_service import DocumentNotFoundError, DocumentService
 from app.services.ingestion_worker import get_ingestion_worker, sweep_stalled_jobs
 
 router = APIRouter(tags=["documents"])
+
+# A compact instance cannot buffer an arbitrary upload: the bytes are read into
+# memory once for the response and copied again through the database round trip.
+# Reject oversized files up front with an actionable message instead of holding
+# them and being OOM-killed mid-request (which returns 502 to everyone).
+MAX_UPLOAD_MB = float(os.getenv("MAX_UPLOAD_MB", "25"))
+_MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+
+
+def _too_large_detail(name: str) -> str:
+    return (
+        f"{name} is larger than this server's {MAX_UPLOAD_MB:.0f} MB upload limit. "
+        "Split the PDF and upload the parts, or use a smaller file."
+    )
 
 
 def _serialize(document) -> DocumentResponse:
@@ -74,13 +90,28 @@ async def upload_documents(
         for file in files
     ):
         raise HTTPException(status_code=415, detail="Only PDF uploads are supported.")
+    # Reject on the declared size first: an oversized file must never be read
+    # into memory at all. ``size`` is None for some multipart encodings, so the
+    # read length is checked again below.
+    for file in files:
+        declared = getattr(file, "size", None)
+        if declared is not None and declared > _MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail=_too_large_detail(file.filename or "This file"))
     payloads = [(file.filename or "document.pdf", await file.read()) for file in files]
+    for name, content in payloads:
+        if len(content) > _MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail=_too_large_detail(name))
     try:
         documents = service.upload(db, thread_id, payloads)
     except ThreadNotFoundForDocumentError as error:
         raise HTTPException(status_code=404, detail="Thread not found.") from error
     except OSError as error:
         raise HTTPException(status_code=500, detail="Could not store the uploaded file.") from error
+    finally:
+        # The bytes are already persisted durably; holding a second reference
+        # while the response is serialized only inflates peak memory.
+        payloads = []
+        gc.collect()
     for document in documents:
         # Jobs are created by the upload service and managed by the background
         # worker; here we only record the upload event for the activity feed.
