@@ -47,10 +47,12 @@ from app.api.routes_progress import router as progress_router
 from app.api.threads import router as thread_router
 from app.db.session import init_db
 from app.rag.embeddings import get_embeddings
+from app.rag.retriever import RERANKING_ENABLED
 from app.services.chat_service import ChatService
 from app.services.document_service import DocumentService
 from app.services.ingestion_worker import (
     get_ingestion_worker,
+    process_rss_mb,
     recover_pending_ingestion_jobs,
 )
 from app.services.rag_query_service import RagQueryService
@@ -94,12 +96,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # process last stopped (deploy restarts included). Recovery must
         # never take startup down — a failed requeue is logged, not raised.
         app.state.ingestion_worker = get_ingestion_worker(embeddings)
+        if RERANKING_ENABLED:
+            # The local cross-encoder loads torch (~1.5GB resident) on first
+            # use and will OOM any small instance. Loud on purpose.
+            logger.error(
+                "RERANKING_ENABLED=true but reranking needs the local torch "
+                "cross-encoder (~1.5GB RAM). This will exceed a 512MB instance "
+                "limit — unset RERANKING_ENABLED for small deployments."
+            )
         try:
             recover_pending_ingestion_jobs()
         except Exception:  # pragma: no cover - defensive
-            logging.getLogger(__name__).exception(
+            logger.exception(
                 "Startup ingestion recovery failed; continuing without it."
             )
+        rss = process_rss_mb()
+        if rss is not None:
+            logger.info("Startup complete; process RSS %.1f MB", rss)
         tools = [rag_tool, quiz_tool, flashcard_tool, planner_tool, progress_tool, recommendation_tool]
         app.state.chat_service = ChatService(
             create_graph(llm=llm, checkpointer=checkpointer, tools=tools),

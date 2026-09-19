@@ -27,7 +27,9 @@ request's SQLAlchemy session; they open short-lived sessions via
 
 from __future__ import annotations
 
+import gc
 import logging
+import os
 import queue
 import threading
 import uuid
@@ -40,6 +42,36 @@ from app.db import crud
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
+
+
+def process_rss_mb() -> Optional[float]:
+    """Best-effort resident memory of this process, for startup diagnostics."""
+    try:
+        with open("/proc/self/statm", "r", encoding="ascii") as handle:
+            pages = int(handle.read().split()[1])
+        return round(pages * (os.sysconf("SC_PAGE_SIZE") / 1024 / 1024), 1)
+    except (OSError, ValueError, AttributeError, IndexError):
+        return None
+
+
+def release_ingestion_memory(chunks: Optional[list] = None) -> None:
+    """Drop parse/embed working sets and force a collection after ingestion.
+
+    Ingestion transiently holds the parsed pages, the chunk list, and the
+    embedding vectors. On a 512MB container that transient spike is what
+    decides whether the service survives, so the work set is explicitly
+    released and the in-process retrieval caches are trimmed (they are
+    repopulated lazily on the next query).
+    """
+    if chunks is not None:
+        chunks.clear()
+    try:
+        from app.rag.retriever import clear_retrieval_cache
+
+        clear_retrieval_cache()
+    except Exception:  # pragma: no cover - cache clearing is best-effort
+        pass
+    gc.collect()
 
 
 class UploadMediaStore:
@@ -288,6 +320,12 @@ class IngestionWorker:
         except Exception:
             delete_index(save_path)
             raise
+        finally:
+            # Release the parse/embed working set before the job ends. On a
+            # 512MB container the difference between "chunks alive" and "chunks
+            # collected" is the margin that decides whether the next request
+            # OOMs.
+            release_ingestion_memory(chunks)
         return {"page_count": metadata["page_count"], "chunk_count": metadata["chunk_count"]}
 
 

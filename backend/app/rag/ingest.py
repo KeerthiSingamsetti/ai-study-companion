@@ -211,11 +211,16 @@ def load_and_chunk_pdf(
             add_start_index=True,
         )
         
-        chunks = [
-            chunk
-            for document in docs
-            for chunk in split_document_structure_aware(document, splitter)
-        ]
+        # Chunk page by page and release each page's raw text immediately.
+        # Holding every page of a large PDF (a 440-page textbook is ~11MB of
+        # text plus pypdf's object graph) while also building the chunk list is
+        # the peak-memory moment of ingestion — enough to OOM a 512MB
+        # container. The splitter returns new strings, so clearing the source
+        # page afterwards cannot affect the produced chunks.
+        chunks: List[Document] = []
+        for document in docs:
+            chunks.extend(split_document_structure_aware(document, splitter))
+            document.page_content = ""
         
         # This check catches scanned/image-only PDFs where pages had no extractable text,
         # resulting in the splitter producing zero text chunks.
