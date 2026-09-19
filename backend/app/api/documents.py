@@ -18,6 +18,7 @@ from app.db.models import User
 from app.db.session import get_db
 from app.schemas.document import DocumentResponse, DocumentUploadResponse
 from app.services.document_service import DocumentNotFoundError, DocumentService, ThreadNotFoundForDocumentError
+from app.services.ingestion_worker import get_ingestion_worker
 
 router = APIRouter(tags=["documents"])
 
@@ -97,8 +98,10 @@ def list_ingestion_jobs(
 ) -> list[dict]:
     if crud.get_thread(db, thread_id, user_id=current_user.id) is None:
         raise HTTPException(status_code=404, detail="Thread not found.")
+    worker = get_ingestion_worker()
     return [{"id": job.id, "document_id": job.document_id, "status": job.status,
              "retry_count": job.retry_count, "error_msg": job.error_msg,
+             "progress": worker.progress(job.document_id),
              "created_at": job.created_at, "updated_at": job.updated_at}
             for job in crud.list_ingestion_jobs_for_project(db, thread_id)]
 

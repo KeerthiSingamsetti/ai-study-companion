@@ -31,7 +31,9 @@ import queue
 import threading
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
+
+from langchain_core.embeddings import Embeddings
 
 from app.db import crud
 from app.db.session import SessionLocal
@@ -90,6 +92,37 @@ class UploadMediaStore:
 media_store = UploadMediaStore()
 
 
+class _ProgressEmbeddings(Embeddings):
+    """Counting wrapper that reports embedding progress without DB writes.
+
+    Subclasses LangChain's ``Embeddings`` ABC (as ``CohereEmbeddings`` does)
+    so FAISS still accepts it. Batching is driven here (mirroring the Cohere
+    API's per-request limit) so ``on_batch`` fires after every provider round
+    trip rather than once at the end. Provenance identity is excluded from
+    this wrapper via ``build_and_save_index(embedding_identity=...)``.
+    """
+
+    _BATCH_SIZE = 96  # Cohere embed endpoint maximum
+
+    def __init__(self, inner: Any, on_batch: Callable[[int], None]) -> None:
+        self._inner = inner
+        self._on_batch = on_batch
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), self._BATCH_SIZE):
+            batch = texts[start : start + self._BATCH_SIZE]
+            vectors.extend(self._inner.embed_documents(batch))
+            self._on_batch(len(batch))
+        return vectors
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._inner.embed_query(text)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+
 class IngestionWorker:
     """Single-daemon-thread FIFO processor for PDF ingestion jobs."""
 
@@ -101,6 +134,11 @@ class IngestionWorker:
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._thread_lock = threading.Lock()
+        # In-memory live progress per document (resets on restart):
+        # {"phase": "parsing"} or {"phase": "embedding", "total_chunks": int,
+        # "processed_chunks": int}. Present only while a job is active.
+        self._progress: dict[str, dict[str, Any]] = {}
+        self._progress_lock = threading.Lock()
 
     # -- queue management ----------------------------------------------------
 
@@ -133,6 +171,12 @@ class IngestionWorker:
     def pending_count(self) -> int:
         with self._lock:
             return len(self._enqueued)
+
+    def progress(self, document_id: str) -> Optional[dict[str, Any]]:
+        """Live progress for an active ingestion, or None if idle/finished."""
+        with self._progress_lock:
+            state = self._progress.get(document_id)
+            return dict(state) if state else None
 
     # -- processing ----------------------------------------------------------
 
@@ -168,6 +212,8 @@ class IngestionWorker:
                     project_id=document.thread_id,
                 )
             crud.update_ingestion_job_status(db, job.id, "processing")
+            with self._progress_lock:
+                self._progress[document_id] = {"phase": "parsing"}
             try:
                 counts = self._process_document(document_id, media_path)
             except Exception as error:
@@ -203,6 +249,8 @@ class IngestionWorker:
                 document_id, counts["page_count"], counts["chunk_count"],
             )
         finally:
+            with self._progress_lock:
+                self._progress.pop(document_id, None)
             db.close()
 
     def _process_document(self, document_id: str, media_path: Path) -> dict[str, int]:
@@ -218,13 +266,36 @@ class IngestionWorker:
                 raise PDFIngestError("Document was deleted before ingestion completed.")
             thread_id = document.thread_id
             save_path = document.vectorstore_path
+            # Chunk metadata/citations must carry the user's filename, not the
+            # internal media name ({document_id}.pdf).
+            original_filename = document.filename
         finally:
             db.close()
 
         content = media_path.read_bytes()
-        chunks, metadata = load_and_chunk_pdf(content, filename=media_path.name)
+        chunks, metadata = load_and_chunk_pdf(content, filename=original_filename)
+        with self._progress_lock:
+            self._progress[document_id] = {
+                "phase": "embedding",
+                "total_chunks": len(chunks),
+                "processed_chunks": 0,
+            }
+
+        def _on_batch(batch_size: int) -> None:
+            with self._progress_lock:
+                state = self._progress.get(document_id)
+                if state is not None:
+                    state["processed_chunks"] = state.get("processed_chunks", 0) + batch_size
+
+        progress_embeddings = _ProgressEmbeddings(self._embeddings, _on_batch)
         try:
-            build_and_save_index(chunks, self._embeddings, save_path)
+            # embedding_identity pins index provenance to the REAL client so
+            # later load-time validation matches; the progress wrapper is
+            # scaffolding and must not appear in stored metadata.
+            build_and_save_index(
+                chunks, progress_embeddings, save_path,
+                embedding_identity=self._embeddings,
+            )
         except Exception:
             delete_index(save_path)
             raise
@@ -273,13 +344,16 @@ def recover_pending_ingestion_jobs() -> int:
     try:
         worker = get_ingestion_worker()
         media_store = worker.media_store
-        for job in crud.list_ingestion_jobs_by_status(db, "queued"):
-            document = crud.get_document(db, job.document_id)
-            if document is None:
-                continue
-            media_path = media_store.resolve(document.id)
-            if media_path is not None and worker.enqueue(document.id, media_path):
-                requeued += 1
+        for status in ("queued", "processing"):
+            # Any 'processing' row at startup is stale: this process just
+            # booted, so nothing can legitimately be mid-flight.
+            for job in crud.list_ingestion_jobs_by_status(db, status):
+                document = crud.get_document(db, job.document_id)
+                if document is None:
+                    continue
+                media_path = media_store.resolve(document.id)
+                if media_path is not None and worker.enqueue(document.id, media_path):
+                    requeued += 1
         for document in crud.list_documents_missing_ingestion_jobs(db):
             media_path = media_store.resolve(document.id)
             if media_path is None:

@@ -115,6 +115,7 @@ def build_and_save_index(
     save_path: str,
     *,
     index_metadata: Optional[Mapping[str, Any]] = None,
+    embedding_identity: Optional[Any] = None,
 ) -> None:
     """
     Builds a FAISS index from document chunks and saves it to a local directory.
@@ -155,7 +156,9 @@ def build_and_save_index(
         "schema_version": INDEX_METADATA_SCHEMA_VERSION,
         "index_id": uuid.uuid4().hex,
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "embedding_identifier": embedding_identifier(embeddings),
+        # embedding_identity lets callers pass a progress/counting wrapper as
+        # ``embeddings`` while recording the real client's identity.
+        "embedding_identifier": embedding_identifier(embedding_identity if embedding_identity is not None else embeddings),
         "embedding_dimension": int(vectorstore.index.d),
         "chunk_count": len(chunks),
         "source_count": len(sources),

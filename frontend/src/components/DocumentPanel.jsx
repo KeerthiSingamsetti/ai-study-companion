@@ -67,13 +67,26 @@ export default function DocumentPanel({ threadId, onDocumentUploaded }) {
     }
   }, [threadId, loadJobs])
 
-  /* Poll while any job is still moving through the pipeline */
+  /* Poll while any job is still moving through the pipeline. Documents are
+     refetched alongside jobs so counts fill in the moment ingestion lands. */
+  const loadDocuments = useCallback(async () => {
+    if (!threadId || threadId === 'undefined') return
+    try {
+      setDocuments(await getDocuments(threadId))
+    } catch {
+      /* keep the current list on transient errors */
+    }
+  }, [threadId])
+
   useEffect(() => {
     const isPending = jobs.some((job) => job.status === 'queued' || job.status === 'processing')
     if (!isPending) return undefined
-    const timer = setInterval(() => void loadJobs(), 4000)
+    const timer = setInterval(() => {
+      void loadJobs()
+      void loadDocuments()
+    }, 4000)
     return () => clearInterval(timer)
-  }, [jobs, loadJobs])
+  }, [jobs, loadJobs, loadDocuments])
 
   /* Upload logic */
   const handleUpload = useCallback(
@@ -249,7 +262,11 @@ export default function DocumentPanel({ threadId, onDocumentUploaded }) {
                       {job && <JobStatePill state={job.status} />}
                     </div>
                     <p className="mt-1 text-xs text-[var(--text-muted)]">
-                      {doc.page_count ?? '?'} pages · {doc.chunk_count ?? '?'} chunks
+                      {job && (job.status === 'queued' || job.status === 'processing')
+                        ? (job.progress?.phase === 'embedding'
+                          ? `Indexing ${job.progress.processed_chunks ?? 0}/${job.progress.total_chunks ?? '?'} chunks…`
+                          : 'Parsing PDF…')
+                        : `${doc.page_count ?? '?'} pages · ${doc.chunk_count ?? '?'} chunks`}
                       {job?.retry_count ? ` · retried ${job.retry_count}×` : ''}
                     </p>
                     {job?.status === 'failed' && job.error_msg && (

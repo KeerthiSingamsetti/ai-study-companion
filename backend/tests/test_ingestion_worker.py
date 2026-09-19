@@ -180,6 +180,56 @@ def test_retry_rejects_nonfailed_job(test_client, auth_headers, fast_worker):
     assert test_client.post(f"/ingestion-jobs/{ready_job['id']}/retry", headers=auth_headers).status_code == 409
 
 
+def test_jobs_endpoint_reports_live_embedding_progress(test_client, auth_headers, fast_worker):
+    thread_id = _create_project(test_client, auth_headers)
+    gate = threading.Event()
+
+    class Gated(InstantEmbeddings):
+        def embed_documents(self, texts):
+            gate.wait(timeout=10)
+            return super().embed_documents(texts)
+
+    fast_worker._embeddings = Gated()
+    try:
+        document = _upload(test_client, auth_headers, thread_id)
+        deadline = time.monotonic() + 10
+        progress = None
+        while time.monotonic() < deadline:
+            job = _first_job(test_client, auth_headers, thread_id, document["id"])
+            progress = job.get("progress")
+            if progress and progress.get("phase") == "embedding":
+                break
+            time.sleep(0.05)
+        assert progress == {
+            "phase": "embedding",
+            "total_chunks": progress["total_chunks"],
+            "processed_chunks": 0,
+        }
+        assert progress["total_chunks"] > 0
+    finally:
+        gate.set()
+    assert _wait_for_status(fast_worker, document["id"], {"ready"}) == "ready"
+
+
+def test_recover_requeues_jobs_stuck_in_processing(test_client, auth_headers, fast_worker, monkeypatch):
+    thread_id = _create_project(test_client, auth_headers)
+    document = _upload(test_client, auth_headers, thread_id)
+    job = _first_job(test_client, auth_headers, thread_id, document["id"])
+    assert _wait_for_status(fast_worker, document["id"], {"ready"}) == "ready"
+
+    # Simulate a crash mid-processing: the row was left 'processing'.
+    db = SessionLocal()
+    try:
+        crud.update_ingestion_job_status(db, job["id"], "processing")
+    finally:
+        db.close()
+
+    restarted = IngestionWorker(InstantEmbeddings(), media_store=fast_worker.media_store)
+    monkeypatch.setattr(worker_module, "_WORKER", restarted, raising=False)
+    assert recover_pending_ingestion_jobs() >= 1
+    assert _wait_for_status(restarted, document["id"], {"ready"}) == "ready"
+
+
 def test_recover_pending_ingestion_jobs_requeues(test_client, auth_headers, fast_worker, monkeypatch):
     # Freeze the first worker so the job row stays 'queued' exactly as it
     # would when a process dies before draining its queue.
