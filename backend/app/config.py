@@ -1,11 +1,33 @@
 """Application configuration constants for AI Study Companion."""
 
+import logging
 import os
+import secrets
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_USER_ID = "default_user"
 
 # --- Authentication ---
-SECRET_KEY = os.getenv("SECRET_KEY", "ai-study-companion-secret-key-change-in-prod-2026")
+# RFC 7518 §3.2 requires >= 32 bytes of key material for HS256; a shorter
+# HMAC key makes PyJWT emit an InsecureKeyLengthWarning on every decode.
+_SECRET_KEY_SOURCE = os.getenv("SECRET_KEY")
+if not _SECRET_KEY_SOURCE:
+    generated = secrets.token_urlsafe(48)
+    logger.warning(
+        "SECRET_KEY is not configured; generated an ephemeral signing key. "
+        "Issued login tokens will stop validating after a restart — set SECRET_KEY."
+    )
+    _SECRET_KEY_SOURCE = generated
+elif len(_SECRET_KEY_SOURCE.encode("utf-8")) < 32:
+    # Deterministic ASCII pad: same env value → same effective key, so tokens
+    # stay valid across restarts. Still rotate to a real 32+ byte secret.
+    _SECRET_KEY_SOURCE = (_SECRET_KEY_SOURCE + "studymate-hs256-min-length-padding")[:64]
+    logger.warning(
+        "SECRET_KEY is shorter than the 32-byte HS256 minimum; it was padded. "
+        "Set a proper SECRET_KEY (>= 32 random bytes) in the deployment environment."
+    )
+SECRET_KEY = _SECRET_KEY_SOURCE
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 ALGORITHM = "HS256"
 

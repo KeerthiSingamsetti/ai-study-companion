@@ -164,9 +164,9 @@ Default retrieval keeps a small final evidence set (`k=6`, rerank top 4; callers
 
 ## 14. Ingestion jobs and prototype observability
 
-The upload route currently ingests inline and records successful job state afterward; retry changes failed state back to queued.
+Uploads are asynchronous: the request persists upload media and a `queued` job and returns immediately; a single background worker thread performs parse → chunk → embed → FAISS, updates counts, and marks the job `ready`/`failed`. Retry re-runs a failed job from persisted upload media; startup recovery re-enqueues jobs left `queued` by a restart.
 
-**Reasoning for retaining this in this documentation phase:** the build is documentation-only, so existing request compatibility is described rather than replaced with a worker. This is a limitation against the PRD's asynchronous/recovery requirements, not an assertion that inline work satisfies them.
+**Reasoning:** inline ingestion held the HTTP connection for minutes on large PDFs until deployment proxies killed it, surfacing as a generic request error. A single in-process worker removes the user-facing failure while staying within the deployment's constraints; it is not a distributed durable queue (no auto-retry/backoff, `processing` jobs are not auto-resumed after a crash).
 
 Likewise, available AI log fields and optional LangSmith traces are useful diagnostics, but placeholder/missing metrics must not be presented as measured latency, token use, or cost.
 

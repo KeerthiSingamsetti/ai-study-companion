@@ -119,7 +119,7 @@ Application events and AI-call records are separate:
 - **Ingestion jobs:** ownership, status, retry count and errors.
 - **LangSmith:** optional external tracing for deeper AI diagnostics.
 
-The persisted job vocabulary is `queued`, `processing`, `ready`, `failed`. However, the inspected upload route calls ingestion synchronously, then records a ready job after success. Retrying a failed job updates it to queued; that alone is not a durable worker or actual reprocessing guarantee.
+The persisted job vocabulary is `queued`, `processing`, `ready`, `failed`. Uploads persist the PDF to `backend/upload_media/`, create the document and a `queued` job, and return `201` immediately; a single background worker thread (`app/services/ingestion_worker.py`) then runs parse → chunk → embed → FAISS and drives the job to `ready` or `failed` with a stored error. Retrying a failed job re-enqueues it from the persisted upload media, and startup recovery re-enqueues anything left `queued` by a restart. The worker is in-process, not a distributed queue.
 
 Home/project/global analytics are separate learner surfaces. Admin operations/product routes provide aggregate usage, activity and job information. Their existence does not establish all PRD admin filters, individual learning-journey inspection, or infrastructure monitoring.
 

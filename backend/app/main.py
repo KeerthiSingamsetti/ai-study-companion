@@ -36,6 +36,10 @@ from app.db.session import init_db
 from app.rag.embeddings import get_embeddings
 from app.services.chat_service import ChatService
 from app.services.document_service import DocumentService
+from app.services.ingestion_worker import (
+    get_ingestion_worker,
+    recover_pending_ingestion_jobs,
+)
 from app.services.rag_query_service import RagQueryService
 from app.services.thread_service import ThreadService
 from app.tools.flashcard_tool import create_flashcard_tool
@@ -71,6 +75,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         recommendation_tool = create_recommendation_tool()
         app.state.checkpointer = checkpointer
         app.state.thread_service = ThreadService()
+        # Single background worker for PDF ingestion. Creating it here pins it
+        # to the same embeddings client the rest of the app uses; startup
+        # recovery re-enqueues uploads that were still queued when the
+        # process last stopped (deploy restarts included).
+        app.state.ingestion_worker = get_ingestion_worker(embeddings)
+        recover_pending_ingestion_jobs()
         tools = [rag_tool, quiz_tool, flashcard_tool, planner_tool, progress_tool, recommendation_tool]
         app.state.chat_service = ChatService(
             create_graph(llm=llm, checkpointer=checkpointer, tools=tools),

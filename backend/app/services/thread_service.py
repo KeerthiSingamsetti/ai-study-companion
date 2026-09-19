@@ -69,9 +69,14 @@ class ThreadService:
         if crud.get_thread(db, thread_id) is None:
             raise ThreadNotFoundError(f"Thread {thread_id!r} does not exist.")
         from app.rag.store import delete_index
+        from app.services.ingestion_worker import media_store
 
         for document in crud.list_documents_for_thread(db, thread_id):
             delete_index(document.vectorstore_path)
+            try:
+                media_store.purge(document.id)
+            except OSError:
+                pass
         crud.delete_thread(db, thread_id)
 
     def set_automatic_title(

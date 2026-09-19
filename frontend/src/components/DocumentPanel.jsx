@@ -178,9 +178,9 @@ export default function DocumentPanel({ threadId, onDocumentUploaded }) {
           <UploadCloud className="size-5" />
         </span>
         <p className="font-display text-sm font-semibold text-[var(--text-primary)]">
-          {isUploading ? 'Uploading & indexing…' : 'Drop PDFs here or click to browse'}
+          {isUploading ? 'Uploading…' : 'Drop PDFs here or click to browse'}
         </p>
-        <p className="text-xs text-[var(--text-muted)]">PDF only · multiple files supported · processed in the background</p>
+        <p className="text-xs text-[var(--text-muted)]">PDF only · multiple files supported · indexing continues in the background</p>
         <input
           ref={fileInputRef}
           type="file"
@@ -194,7 +194,7 @@ export default function DocumentPanel({ threadId, onDocumentUploaded }) {
       {isUploading && (
         <div className="flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3.5 py-2.5">
           <span className="size-3 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
-          <span className="text-xs font-medium text-[var(--accent)]">Parsing & indexing your material…</span>
+          <span className="text-xs font-medium text-[var(--accent)]">Sending your files…</span>
         </div>
       )}
 

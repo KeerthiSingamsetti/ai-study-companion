@@ -21,6 +21,9 @@ def extract_document_topics(document_id: str, llm: Any, max_topics: int = 10) ->
         document = crud.get_document(db, document_id)
         if document is None:
             raise LookupError("The requested document does not exist.")
+        if document.page_count == 0:
+            # Background ingestion has not written the index yet.
+            return []
         chunks = sorted(load_chunks(document.vectorstore_path) or [], key=lambda c: c.metadata.get("chunk_index", 0))
         if not chunks:
             return []

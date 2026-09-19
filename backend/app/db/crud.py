@@ -576,6 +576,27 @@ def list_ingestion_jobs_for_project(db: Session, project_id: str) -> list[Ingest
     return db.query(IngestionJob).filter(IngestionJob.project_id == project_id).order_by(IngestionJob.created_at.desc()).all()
 
 
+def list_ingestion_jobs_by_status(db: Session, status: str) -> list[IngestionJob]:
+    """Return ingestion jobs currently in a given state (restart recovery)."""
+    return (
+        db.query(IngestionJob)
+        .filter(IngestionJob.status == status)
+        .order_by(IngestionJob.created_at.asc())
+        .all()
+    )
+
+
+def list_documents_missing_ingestion_jobs(db: Session) -> list[Document]:
+    """Return documents that have no ingestion job row (legacy/pre-worker uploads)."""
+    return (
+        db.query(Document)
+        .outerjoin(IngestionJob, IngestionJob.document_id == Document.id)
+        .filter(IngestionJob.id.is_(None))
+        .order_by(Document.uploaded_at.asc())
+        .all()
+    )
+
+
 # ---------------------------------------------------------------------------
 # Observability
 # ---------------------------------------------------------------------------
@@ -619,21 +640,40 @@ def list_retrieval_traces(db: Session, project_id: str, limit: int = 50) -> list
 
 
 def update_ingestion_job_status(
-    db: Session, job_id: str, status: str, retry_count: Optional[int] = None, error_msg: Optional[str] = None
+    db: Session, job_id: str, status: str, retry_count: Optional[int] = None,
+    error_msg: Optional[str] = None, *, clear_error: bool = False,
 ) -> Optional[IngestionJob]:
-    """Update background job status."""
+    """Update background job status.
+
+    ``error_msg=None`` leaves any stored message untouched; pass
+    ``clear_error=True`` to reset it (e.g. when a retry succeeds).
+    """
     job = db.get(IngestionJob, job_id)
     if job is None:
         return None
     job.status = status
     if retry_count is not None:
         job.retry_count = retry_count
-    if error_msg is not None:
+    if clear_error:
+        job.error_msg = None
+    elif error_msg is not None:
         job.error_msg = error_msg
     job.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(job)
     return job
+
+
+def update_document_counts(db: Session, document_id: str, *, page_count: int, chunk_count: int) -> Optional[Document]:
+    """Fill in page/chunk counts after background ingestion finishes."""
+    document = db.get(Document, document_id)
+    if document is None:
+        return None
+    document.page_count = page_count
+    document.chunk_count = chunk_count
+    db.commit()
+    db.refresh(document)
+    return document
 
 
 # ---------------------------------------------------------------------------

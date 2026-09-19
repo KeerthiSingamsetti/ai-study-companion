@@ -83,6 +83,11 @@ def generate_quiz(
     document = crud.get_document(db, document_id)
     if document is None:
         raise QuizGenerationError("The requested document does not exist.")
+    if document.page_count == 0:
+        # Background ingestion has not written the index yet.
+        raise QuizGenerationError(
+            "This document is still processing — try again once it is ready."
+        )
 
     chunks = retrieve(
         topic,

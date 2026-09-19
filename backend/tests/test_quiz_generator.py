@@ -57,6 +57,10 @@ def test_generate_quiz_reuses_retriever_and_logs_event(monkeypatch) -> None:
         thread_id="thread-1",
         filename="biology.pdf",
         vectorstore_path="existing-index",
+        # Under the async ingestion lifecycle, page_count == 0 means "still
+        # processing" and quiz generation refuses it — model a ready document.
+        page_count=12,
+        chunk_count=40,
     )
     retrieved: list[tuple[str, str, object]] = []
 

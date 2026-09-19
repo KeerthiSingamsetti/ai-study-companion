@@ -49,12 +49,13 @@ References: [Project_Requirements.pdf](Project_Requirements.pdf) and [compact_pr
 
 ## Background processing and idempotency
 
-The current document upload route invokes ingestion **inline**, then records a ready job after success. It does not dispatch the PDF to a durable background worker.
+Uploads now dispatch to a background worker (`app/services/ingestion_worker.py`): upload bytes are persisted to `backend/upload_media/` before the HTTP response returns, the upload endpoint answers immediately with a queued job, and the full `queued → processing → ready/failed` lifecycle executes on a worker thread. Retrying a failed job re-runs ingestion from the persisted upload media, and startup recovery re-enqueues jobs left queued by a restart.
 
-- Job states exist, but they do not establish that the complete `queued → processing → ready/failed` lifecycle executes asynchronously.
-- Retry changes a failed record to queued and increments its count; it does not by itself restart processing.
-- An upload failure before successful ingestion may occur before a job record is created.
-- Worker recovery after a process restart, browser-independent durable execution and distributed retry/backoff are not established.
+Remaining constraints of that design:
+
+- The worker is in-process and single-threaded. It survives proxy timeouts by construction, but it is not a distributed queue: a crash mid-processing leaves the job `processing` until a manual retry, and there is no automatic retry/backoff.
+- Startup recovery covers `queued` jobs (and documents without job rows that have persisted media). A job that died mid-flight in `processing` is not auto-resumed.
+- Upload media and FAISS indexes live on local disk; on ephemeral hosts (e.g. Render free tier) a redeploy can still lose the stored media for recovery, in which case the retry endpoint reports that the upload must be repeated.
 - Unique event keys help avoid duplicates, but separate state/event commits are not an exactly-once transaction guarantee under crashes or concurrent requests.
 
 These are limitations against PRD §§5, 12, 13 and 18, not features that should be inferred from the presence of job/event tables.
@@ -73,7 +74,7 @@ These are limitations against PRD §§5, 12, 13 and 18, not features that should
 - Ownership checks and isolation tests are present, but no exhaustive security audit or penetration-test claim is made.
 - **Progress/memory scoping (fixed):** `/progress`, the tutor's `get_study_progress` tool and the general-chat memory context now scope every read and write to the authenticated user **and** the active Project. A Project belongs to exactly one Space, so Project scoping also isolates Spaces. Legacy rows written before scoping carry `project_id = NULL` and are deliberately excluded from Project-scoped views rather than being shown everywhere.
 - **Admin role restriction (fixed):** awarding admin status is deliberately harder than being a student. New admins are created only as the FIRST registered user, or via a direct database update (`make promote-admin`); there is no self-service admin-promote path.
-- The development JWT signing-secret fallback must be replaced with a strong secret. The README explicitly requires `SECRET_KEY`.
+- The JWT signing secret must be a strong deployment-provided value (≥ 32 bytes for HS256). When `SECRET_KEY` is unset the app generates an ephemeral key (logins stop validating after restart); a short configured value is deterministically padded with a loud warning — set a real secret in production.
 - The legacy seeded `default_user` is not a documented usable login account.
 - The dedicated Admin Console is not inherited: admins surface here and nowhere else, rather than being given their own study workspace.
 - Protect database/index files and backups; do not expose local serialized index assets or accept untrusted prebuilt indexes.

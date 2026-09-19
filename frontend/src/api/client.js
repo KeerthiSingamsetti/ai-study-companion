@@ -74,13 +74,23 @@ export class ApiError extends Error {
 
 export async function request(path, options = {}) {
   const isFormData = options.body instanceof FormData
-  const response = await authenticatedFetch(path, {
-    ...options,
-    headers: {
-      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-      ...options.headers,
-    },
-  })
+  let response
+  try {
+    response = await authenticatedFetch(path, {
+      ...options,
+      headers: {
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...options.headers,
+      },
+    })
+  } catch (networkError) {
+    // fetch() rejects without a response when the connection dies mid-request
+    // (timeout, proxy reset, offline) — say so instead of a generic message.
+    throw new ApiError(
+      'Lost connection to the server before it responded. If this was an upload, check Materials — the file may have been received and still be processing.',
+      0,
+    )
+  }
 
   if (response.status === 204) {
     return null
