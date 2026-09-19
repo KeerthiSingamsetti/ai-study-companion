@@ -183,49 +183,62 @@ def load_and_chunk_pdf(
         # conversion before PyPDFLoader extracts Unicode text.
         with os.fdopen(temp_fd, 'wb') as f:
             f.write(file_bytes)
-            
-        loader = PyPDFLoader(temp_path)
-        try:
-            docs = loader.load()
-        except Exception as e:
-            raise PDFIngestError(f"Failed to parse PDF: {str(e)}") from e
 
-        # Normalise extracted text: expand PDF ligature codepoints (ﬁ→fi etc.)
-        # and remove soft-hyphens so they never reach RAG chunks or user responses.
-        for doc in docs:
-            doc.page_content = _normalise_pdf_text(doc.page_content)
-            
-        # This check only catches a zero-page PDF (a completely empty document skeleton).
-        # Scanned/image-only PDFs (real pages, but no extractable text) will bypass this
-        # because PyPDFLoader returns Document objects with empty page_content.
-        if not docs:
-            raise PDFIngestError("PDF was parsed but contained zero pages.")
-            
-        if filename:
-            for doc in docs:
-                doc.metadata["source"] = filename
-            
+        loader = PyPDFLoader(temp_path)
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             add_start_index=True,
         )
-        
-        # Chunk page by page and release each page's raw text immediately.
-        # Holding every page of a large PDF (a 440-page textbook is ~11MB of
-        # text plus pypdf's object graph) while also building the chunk list is
-        # the peak-memory moment of ingestion — enough to OOM a 512MB
-        # container. The splitter returns new strings, so clearing the source
-        # page afterwards cannot affect the produced chunks.
+
+        # Stream page by page: normalise, chunk, and release each page's text
+        # immediately. ``loader.load()`` would materialise every page of the
+        # PDF at once (a 440-page textbook is ~11MB of text on top of pypdf's
+        # object graph) — the peak-memory moment of ingestion and enough to
+        # OOM a 512MB container. lazy_load() keeps at most one page's text
+        # alive at a time; the splitter returns new strings, so clearing the
+        # source page cannot affect the produced chunks.
         chunks: List[Document] = []
-        for document in docs:
-            chunks.extend(split_document_structure_aware(document, splitter))
-            document.page_content = ""
-        
+        page_count = 0
+        try:
+            for page in loader.lazy_load():
+                if not page.page_content:
+                    continue  # blank or scanned/image-only page
+                # Normalise extracted text: expand PDF ligature codepoints
+                # (ﬁ→fi etc.) and remove soft-hyphens so they never reach
+                # RAG chunks or user responses.
+                page.page_content = _normalise_pdf_text(page.page_content)
+                if filename:
+                    page.metadata["source"] = filename
+                chunks.extend(split_document_structure_aware(page, splitter))
+                page.page_content = ""
+                page_count += 1
+        except PDFIngestError:
+            raise
+        except Exception as e:
+            raise PDFIngestError(f"Failed to parse PDF: {str(e)}") from e
+
+        # This check only catches a zero-page PDF (a completely empty document
+        # skeleton). Scanned/image-only PDFs (real pages, but no extractable
+        # text) are caught by the zero-chunks check below.
+        if page_count == 0:
+            raise PDFIngestError("PDF was parsed but contained zero pages.")
+
         # This check catches scanned/image-only PDFs where pages had no extractable text,
         # resulting in the splitter producing zero text chunks.
         if not chunks:
             raise PDFIngestError("PDF splitting resulted in zero chunks. Ensure the PDF contains extractable text, not just images.")
+
+        # Guardrail for compact instances: chunk count drives the size of the
+        # embedding batch loop, the FAISS build, and the persisted chunk list.
+        # A document far above the limit is exactly the ingestion that OOM-kills
+        # a 512MB container; failing cleanly with instructions beats dying.
+        max_chunks = int(os.getenv("INGEST_MAX_CHUNKS", "2000"))
+        if max_chunks > 0 and len(chunks) > max_chunks:
+            raise PDFIngestError(
+                f"This PDF is too large for this server: it produced {len(chunks)} "
+                f"chunks (limit {max_chunks}). Split it into parts and upload them separately."
+            )
 
         # Make retrieval filters and persisted-index provenance deterministic.
         # PyPDFLoader already supplies zero-based `page`; keep that convention.
@@ -238,7 +251,7 @@ def load_and_chunk_pdf(
         annotate_figure_metadata(chunks)
             
         metadata_summary = {
-            "page_count": len(docs),
+            "page_count": page_count,
             "chunk_count": len(chunks)
         }
         
