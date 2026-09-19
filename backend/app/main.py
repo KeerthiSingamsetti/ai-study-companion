@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -15,7 +16,9 @@ load_dotenv(_BACKEND_DIR / ".env", override=False)
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 
 from app.agent.checkpointer import close_checkpointer, create_checkpointer
@@ -85,24 +88,82 @@ from app.api.admin import router as admin_console_router
 from app.api.learning import router as learning_router
 
 
+logger = logging.getLogger(__name__)
+
+
 def create_app() -> FastAPI:
     """Create the AI Study Companion FastAPI application."""
     app = FastAPI(title="AI Study Companion API", lifespan=lifespan)
-    app.include_router(auth_router)
-    app.include_router(spaces_router)
-    app.include_router(chat_router)
-    app.include_router(document_router)
-    app.include_router(rag_router)
-    app.include_router(quiz_router)
-    app.include_router(flashcard_router)
-    app.include_router(planner_router)
-    app.include_router(progress_router)
-    app.include_router(thread_router)
-    app.include_router(analytics_router)
-    app.include_router(admin_router)
-    app.include_router(admin_console_router)
-    app.include_router(learning_router)
+
+    # Every feature router is registered twice:
+    #   * at its bare path (/auth/..., /chat/...) — the surface the test suite
+    #     targets and the destination of the Vite dev proxy, which forwards
+    #     /api/* with the /api prefix stripped; and
+    #   * under /api (/api/auth/...) — the base URL the committed production
+    #     bundle hard-codes (frontend/src/api/client.js: API_BASE_URL = "/api"),
+    #     which must keep working when FastAPI serves that bundle directly.
+    for router in (
+        auth_router,
+        spaces_router,
+        chat_router,
+        document_router,
+        rag_router,
+        quiz_router,
+        flashcard_router,
+        planner_router,
+        progress_router,
+        thread_router,
+        analytics_router,
+        admin_router,
+        admin_console_router,
+        learning_router,
+    ):
+        app.include_router(router)
+        app.include_router(router, prefix="/api")
+
+    _mount_frontend(app)
     return app
+
+
+# Built SPA committed to the repo so Render (which builds from GitHub, not
+# local files) can serve the frontend from the same service as the API.
+_FRONTEND_DIST_DIR = Path(__file__).resolve().parent.parent / "static"
+
+
+def _mount_frontend(app: FastAPI) -> None:
+    """Serve the built SPA from backend/static for every non-API path.
+
+    Called last in create_app on purpose: the catch-all route below must be
+    registered after all API routes so it can never shadow them. Static
+    bundles are served from /assets (Vite's output layout); every other path —
+    including / and client-side SPA routes — falls back to index.html so the
+    React app boots and routes internally.
+    """
+    if not (_FRONTEND_DIST_DIR / "index.html").is_file():
+        logger.warning(
+            "Frontend bundle missing at %s; only the API will be served.",
+            _FRONTEND_DIST_DIR,
+        )
+        return
+
+    assets_dir = _FRONTEND_DIST_DIR / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    for filename in ("favicon.svg", "icons.svg"):
+        file_path = _FRONTEND_DIST_DIR / filename
+        if file_path.is_file():
+            app.get("/" + filename, include_in_schema=False)(
+                lambda path=file_path: FileResponse(path)
+            )
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str = "") -> FileResponse:
+        """SPA fallback: serve index.html for any unmatched, non-API path."""
+        if full_path.startswith("api/"):
+            # Unknown API paths must stay machine-readable 404s, not HTML.
+            raise HTTPException(status_code=404, detail="Not Found")
+        return FileResponse(_FRONTEND_DIST_DIR / "index.html")
 
 
 
