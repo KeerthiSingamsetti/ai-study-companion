@@ -1,0 +1,27 @@
+# StudyMate backend — DEVELOPMENT dependencies (tests + evaluation).
+# Install on top of the production requirements:
+#   pip install -r requirements.txt -r requirements-dev.txt
+#
+# Deliberately NOT in requirements.txt (see its header comment):
+#   * sentence-transformers / langchain-huggingface pull in torch. Even unused,
+#     `langchain_text_splitters.base` soft-imports `transformers` at module
+#     import time, which triggers torch's availability probe and loads all of
+#     torch (~450MB RSS) — this alone OOM'd the 512MB Render free tier during
+#     the first PDF upload. Production embeddings come from Cohere's API.
+#   * ragas / pandas / langchain-google-genai are only used by eval/ scripts.
+#   * pytest runs the local-embeddings integration tests, which need the
+#     HuggingFace stack — keep this file installed ONLY in dev environments.
+
+# --- Testing ---
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# --- Local embeddings for the integration test suite ---
+langchain-huggingface>=0.0.3
+sentence-transformers>=3.0.0
+
+# --- Evaluation (pinned: RAGAS APIs are not stable across releases) ---
+ragas==0.2.15
+pandas==2.2.3
+PyYAML==6.0.2
+langchain-google-genai==4.2.7
